@@ -27,6 +27,7 @@ import {
   IoCalendarOutline,
   IoLeafOutline,
   IoAlertCircleOutline,
+  IoChevronDownOutline,
 } from "react-icons/io5";
 import { MdTag } from "react-icons/md";
 
@@ -91,6 +92,34 @@ const Field = ({ label, required, icon, error, type = "text", ...props }) => {
   );
 };
 
+const SelectField = ({ label, required, icon, error, children, ...props }) => {
+  return (
+    <div>
+      <label className="block text-sm font-medium text-gray-700 mb-1.5">
+        {label}
+        {required && <span className="text-red-500 ml-0.5">*</span>}
+      </label>
+      <div className="relative">
+        <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 text-lg pointer-events-none">
+          {icon}
+        </span>
+        <select
+          {...props}
+          className={`w-full appearance-none pl-10 pr-9 py-2.5 border rounded-xl text-sm focus:outline-none focus:ring-2 transition bg-white
+            ${error
+              ? "border-red-300 focus:ring-red-200 focus:border-red-400"
+              : "border-gray-200 focus:ring-[#4a6741]/20 focus:border-[#4a6741]"
+            }`}
+        >
+          {children}
+        </select>
+        <IoChevronDownOutline className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+      </div>
+      {error && <p className="text-xs text-red-500 mt-1">{error}</p>}
+    </div>
+  );
+};
+
 // Default empty form values used when opening the create panel or resetting the form.
 // If this is missing, form state can become inconsistent between create/edit modes.
 // ─────────────────────────────
@@ -112,6 +141,11 @@ const initialForm = {
   password: "",
   confirmPassword: "",
 };
+
+const studentGradeOptions = ["Grade 7", "Grade 8", "Grade 9", "Grade 10", "Grade 11", "Grade 12"];
+const studentSectionOptions = ["A", "B", "C", "D", "E", "F", "G", "H"];
+const employeeJobTitleOptions = ["Teacher", "Assistant Teacher", "Staff", "Coordinator", "Supervisor", "Admin Staff"];
+const employeeDepartmentOptions = ["Academic", "Administration", "Finance", "HR", "ICT", "Library", "Maintenance", "Security", "Canteen"];
 
 // Helper that converts the rendered QR code SVG into a downloadable PNG file.
 // Without this, the QR code could be shown but users would not be able to save it as an image.
@@ -342,11 +376,26 @@ export default function RegisterStudent() {
     if (Object.keys(errs).length) { setErrors(errs); return; }
     setSubmitting(true);
     try {
+      const schoolId = form.schoolId.trim().toUpperCase();
+      const email = form.email.trim().toLowerCase();
+      const { data: existingUser } = await api.get("/students/exists", {
+        params: { schoolId, email },
+      });
+
+      if (existingUser.exists) {
+        const duplicateErrors = {};
+        if (existingUser.conflict?.schoolId) duplicateErrors.schoolId = "Already exists";
+        if (existingUser.conflict?.email) duplicateErrors.email = "Already exists";
+        setErrors(duplicateErrors);
+        setApiError("A user with that ID or email already exists.");
+        return;
+      }
+
       const { data } = await api.post("/students", {
         firstName: form.firstName.trim(),
         lastName: form.lastName.trim(),
-        email: form.email.trim(),
-        schoolId: form.schoolId.trim(),
+        email,
+        schoolId,
         userType: form.userType,
         gradeLevel: form.userType === "student" ? form.gradeLevel.trim() : "",
         section: form.userType === "student" ? form.section.trim() : "",
@@ -760,8 +809,14 @@ export default function RegisterStudent() {
                             placeholder="STU-2024-XXX" icon={<MdTag />} error={errors.schoolId}
                           />
                           <div className="grid grid-cols-2 gap-3">
-                            <Field label="Grade" name="gradeLevel" value={form.gradeLevel} onChange={handleChange} placeholder="e.g. Grade 7" icon={<IoSchoolOutline />} error={errors.gradeLevel} />
-                            <Field label="Section (Optional)" name="section" value={form.section} onChange={handleChange} placeholder="A" icon={<IoPeopleOutline />} error={errors.section} />
+                            <SelectField label="Grade" name="gradeLevel" value={form.gradeLevel} onChange={handleChange} icon={<IoSchoolOutline />} error={errors.gradeLevel}>
+                              <option value="">Select grade</option>
+                              {studentGradeOptions.map((grade) => <option key={grade} value={grade}>{grade}</option>)}
+                            </SelectField>
+                            <SelectField label="Section (Optional)" name="section" value={form.section} onChange={handleChange} icon={<IoPeopleOutline />} error={errors.section}>
+                              <option value="">Select section</option>
+                              {studentSectionOptions.map((section) => <option key={section} value={section}>{`Section ${section}`}</option>)}
+                            </SelectField>
                           </div>
                         </div>
                       </div>
@@ -775,8 +830,14 @@ export default function RegisterStudent() {
                             placeholder="EMP-2024-XXX" icon={<MdTag />} error={errors.schoolId}
                           />
                           <div className="grid grid-cols-2 gap-3">
-                            <Field label="Job Title" name="jobTitle" value={form.jobTitle} onChange={handleChange} placeholder="e.g. Teacher" icon={<IoBriefcaseOutline />} error={errors.jobTitle} />
-                            <Field label="Department" name="department" value={form.department} onChange={handleChange} placeholder="e.g. Science" icon={<IoPeopleOutline />} error={errors.department} />
+                            <SelectField label="Job Title" name="jobTitle" value={form.jobTitle} onChange={handleChange} icon={<IoBriefcaseOutline />} error={errors.jobTitle}>
+                              <option value="">Select job title</option>
+                              {employeeJobTitleOptions.map((jobTitle) => <option key={jobTitle} value={jobTitle}>{jobTitle}</option>)}
+                            </SelectField>
+                            <SelectField label="Department" name="department" value={form.department} onChange={handleChange} icon={<IoPeopleOutline />} error={errors.department}>
+                              <option value="">Select department</option>
+                              {employeeDepartmentOptions.map((department) => <option key={department} value={department}>{department}</option>)}
+                            </SelectField>
                           </div>
                         </div>
                       </div>
@@ -968,8 +1029,14 @@ export default function RegisterStudent() {
                               placeholder="STU-2024-XXX" icon={<MdTag />} error={errors.schoolId}
                             />
                             <div className="grid grid-cols-2 gap-3">
-                              <Field label="Grade" name="gradeLevel" value={form.gradeLevel} onChange={handleChange} placeholder="e.g. Grade 7" icon={<IoSchoolOutline />} error={errors.gradeLevel} />
-                              <Field label="Section (Optional)" name="section" value={form.section} onChange={handleChange} placeholder="A" icon={<IoPeopleOutline />} error={errors.section} />
+                              <SelectField label="Grade" name="gradeLevel" value={form.gradeLevel} onChange={handleChange} icon={<IoSchoolOutline />} error={errors.gradeLevel}>
+                                <option value="">Select grade</option>
+                                {studentGradeOptions.map((grade) => <option key={grade} value={grade}>{grade}</option>)}
+                              </SelectField>
+                              <SelectField label="Section (Optional)" name="section" value={form.section} onChange={handleChange} icon={<IoPeopleOutline />} error={errors.section}>
+                                <option value="">Select section</option>
+                                {studentSectionOptions.map((section) => <option key={section} value={section}>{`Section ${section}`}</option>)}
+                              </SelectField>
                             </div>
                           </div>
                         </div>
@@ -983,8 +1050,14 @@ export default function RegisterStudent() {
                               placeholder="EMP-2024-XXX" icon={<MdTag />} error={errors.schoolId}
                             />
                             <div className="grid grid-cols-2 gap-3">
-                              <Field label="Job Title" name="jobTitle" value={form.jobTitle} onChange={handleChange} placeholder="e.g. Teacher" icon={<IoBriefcaseOutline />} error={errors.jobTitle} />
-                              <Field label="Department" name="department" value={form.department} onChange={handleChange} placeholder="e.g. Science" icon={<IoPeopleOutline />} error={errors.department} />
+                              <SelectField label="Job Title" name="jobTitle" value={form.jobTitle} onChange={handleChange} icon={<IoBriefcaseOutline />} error={errors.jobTitle}>
+                                <option value="">Select job title</option>
+                                {employeeJobTitleOptions.map((jobTitle) => <option key={jobTitle} value={jobTitle}>{jobTitle}</option>)}
+                              </SelectField>
+                              <SelectField label="Department" name="department" value={form.department} onChange={handleChange} icon={<IoPeopleOutline />} error={errors.department}>
+                                <option value="">Select department</option>
+                                {employeeDepartmentOptions.map((department) => <option key={department} value={department}>{department}</option>)}
+                              </SelectField>
                             </div>
                           </div>
                         </div>

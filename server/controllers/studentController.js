@@ -11,6 +11,45 @@ const generateQrToken = (schoolId) => {
   return `SSQR-${schoolId.toUpperCase()}-${suffix}`;
 };
 
+const normalizeSchoolId = (schoolId) => (schoolId || "").toUpperCase().trim();
+const normalizeEmail = (email) => (email || "").toLowerCase().trim();
+
+const findStudentConflict = async ({ schoolId, email, excludeId } = {}) => {
+  const query = { $or: [] };
+  const normalizedSchoolId = normalizeSchoolId(schoolId);
+  const normalizedEmail = normalizeEmail(email);
+
+  if (normalizedSchoolId) query.$or.push({ schoolId: normalizedSchoolId });
+  if (normalizedEmail) query.$or.push({ email: normalizedEmail });
+  if (!query.$or.length) return null;
+  if (excludeId) query._id = { $ne: excludeId };
+
+  return Student.findOne(query).select("_id schoolId email fullName userType");
+};
+
+exports.checkStudentExists = async (req, res) => {
+  try {
+    const conflict = await findStudentConflict({ schoolId: req.query.schoolId, email: req.query.email });
+
+    if (!conflict) {
+      return res.json({ exists: false, conflict: { schoolId: false, email: false } });
+    }
+
+    const schoolId = normalizeSchoolId(req.query.schoolId);
+    const email = normalizeEmail(req.query.email);
+
+    return res.json({
+      exists: true,
+      conflict: {
+        schoolId: conflict.schoolId === schoolId,
+        email: conflict.email === email,
+      },
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
 // POST /api/students  (admin/staff only)
 exports.createStudent = async (req, res) => {
   try {
@@ -25,12 +64,11 @@ exports.createStudent = async (req, res) => {
     }
 
     const fullName = `${firstName.trim()} ${lastName.trim()}`;
-    const normalizedId = schoolId.toUpperCase().trim();
+    const normalizedId = normalizeSchoolId(schoolId);
+    const normalizedEmail = normalizeEmail(email);
     const type = userType === "employee" ? "employee" : "student";
 
-    const existing = await Student.findOne({
-      $or: [{ schoolId: normalizedId }, { email: email.toLowerCase().trim() }],
-    });
+    const existing = await findStudentConflict({ schoolId: normalizedId, email: normalizedEmail });
     if (existing) {
       return res.status(409).json({ message: "A user with that ID or email already exists" });
     }
@@ -39,7 +77,7 @@ exports.createStudent = async (req, res) => {
 
     const student = await Student.create({
       fullName,
-      email,
+      email: normalizedEmail,
       schoolId: normalizedId,
       userType: type,
       gradeLevel: type === "student" ? (gradeLevel || "") : "",
@@ -137,10 +175,17 @@ exports.updateStudent = async (req, res) => {
 
     const { firstName, lastName, email, schoolId, userType, gradeLevel, section, jobTitle, department, isActive, password } = req.body;
 
+    const nextSchoolId = schoolId !== undefined ? normalizeSchoolId(schoolId) : student.schoolId;
+    const nextEmail = email !== undefined ? normalizeEmail(email) : student.email;
+    const duplicate = await findStudentConflict({ schoolId: nextSchoolId, email: nextEmail, excludeId: student._id });
+    if (duplicate) {
+      return res.status(409).json({ message: "A user with that ID or email already exists" });
+    }
+
     if (firstName !== undefined) student.fullName = `${firstName.trim()} ${(lastName ?? student.fullName.split(" ").slice(1).join(" ")).trim()}`;
     if (firstName !== undefined && lastName !== undefined) student.fullName = `${firstName.trim()} ${lastName.trim()}`;
-    if (email !== undefined) student.email = email.toLowerCase().trim();
-    if (schoolId !== undefined) student.schoolId = schoolId.toUpperCase().trim();
+    if (email !== undefined) student.email = normalizeEmail(email);
+    if (schoolId !== undefined) student.schoolId = normalizeSchoolId(schoolId);
     if (userType !== undefined) student.userType = userType === "employee" ? "employee" : "student";
     if (gradeLevel !== undefined) student.gradeLevel = gradeLevel;
     if (section !== undefined) student.section = section;
