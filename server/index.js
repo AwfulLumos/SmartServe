@@ -36,6 +36,7 @@ app.use("/api/redemptions", require("./routes/redemptionRoutes"));
 app.use("/api/byoc", require("./routes/byocRoutes"));
 app.use("/api/menu", require("./routes/menuRoutes"));
 app.use("/api/orders", require("./routes/orderRoutes"));
+app.use("/api/forecast", require("./routes/forecastRoutes"));
 app.use("/api/points-config", require("./routes/pointsConfigRoutes"));
 app.use("/api/audit-logs", require("./routes/auditLogRoutes"));
 app.use("/api/dashboard", require("./routes/dashboardRoutes"));

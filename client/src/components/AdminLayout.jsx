@@ -229,7 +229,7 @@ const navItems = [
   { label: "Inventory", icon: <IoCubeOutline />, to: "/dashboard/inventory" },
   { label: "Orders", icon: <IoReceiptOutline />, to: "/dashboard/orders" },
   { label: "Alerts", icon: <IoNotificationsOutline />, to: "/dashboard/alerts", wip: true },
-  { label: "Analytics", icon: <IoBarChartOutline />, to: "/dashboard/analytics", wip: true },
+  { label: "Analytics", icon: <IoBarChartOutline />, to: "/dashboard/analytics" },
   { label: "Rewards", icon: <IoGiftOutline />, to: "/dashboard/rewards" },
   { label: "Staff Accounts", icon: <MdPeopleOutline />, to: "/dashboard/settings/staff" },
   { label: "Menu Management", icon: <MdMenuBook />, to: "/dashboard/settings/menu" },
