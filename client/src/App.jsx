@@ -14,6 +14,7 @@ import Inventory from "./pages/admin/Inventory";
 import Rewards from "./pages/admin/Rewards";
 import Orders from "./pages/admin/Orders";
 import Settings from "./pages/admin/Settings";
+import Analytics from "./pages/admin/Analytics";
 import StudentSplash from "./pages/student/StudentSplash";
 import StudentLogin from "./pages/student/StudentLogin";
 import StudentForgotPassword from "./pages/student/StudentForgotPassword";
@@ -160,6 +161,14 @@ function App() {
               element={
                 <ProtectedRoute>
                   <Rewards />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/dashboard/analytics"
+              element={
+                <ProtectedRoute>
+                  <Analytics />
                 </ProtectedRoute>
               }
             />
