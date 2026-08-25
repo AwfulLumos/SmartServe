@@ -465,11 +465,6 @@ function MenuView({ cart, setCart, onOpenCart }) {
               </div>
 
               <button
-                onClick={() => {
-                  addToCart(previewItem);
-                  setPreviewItem(null);
-                  toast.success(`Added ${previewItem.name} to cart!`);
-                }}
                 className="w-full py-3.5 bg-[#4a6741] hover:bg-[#3a5333] active:scale-[0.98] text-white font-extrabold text-sm rounded-2xl flex items-center justify-center gap-2 shadow-md transition"
               >
                 <IoAddOutline className="text-xl" />
@@ -489,6 +484,7 @@ function CartView({ cart, setCart, onBack, student, onOrderPlaced }) {
   const [error, setError] = useState("");
 
   const total = cart.reduce((sum, i) => sum + i.price * i.quantity, 0);
+  const totalItemsCount = cart.reduce((sum, i) => sum + i.quantity, 0);
 
   function updateQty(menuItemId, delta) {
     setCart((prev) =>
@@ -516,88 +512,127 @@ function CartView({ cart, setCart, onBack, student, onOrderPlaced }) {
   }
 
   return (
-    <div className="flex-1 flex flex-col overflow-hidden">
+    <div className="flex-1 flex flex-col h-full min-h-0 overflow-hidden bg-gray-50 dark:bg-[#0f170a]">
       {/* Cart header */}
-      <div className="px-5 pt-5 pb-3 flex items-center gap-3">
-        <button onClick={onBack} className="w-9 h-9 rounded-full bg-gray-100 flex items-center justify-center">
-          <IoArrowBackOutline className="text-gray-600 text-lg" />
-        </button>
-        <div>
-          <h2 className="text-xl font-extrabold text-gray-800">My Cart</h2>
-          <p className="text-xs text-gray-400">{cart.length} {cart.length === 1 ? "item" : "items"}</p>
-        </div>
-      </div>
-
-      {/* Items */}
-      <div className="flex-1 overflow-y-auto px-4 pb-4">
-        {cart.length === 0 ? (
-          <div className="text-center py-16 text-gray-400 text-sm">Your cart is empty</div>
-        ) : (
-          <div className="flex flex-col gap-3 mt-2">
-            {cart.map((item) => (
-              <div key={item.menuItemId} className="bg-white rounded-2xl border border-gray-100 shadow-sm px-4 py-4">
-                <div className="flex items-start justify-between mb-2">
-                  <div>
-                    <p className="font-bold text-gray-800 text-sm">{item.name}</p>
-                    <p className="text-xs text-gray-400 mt-0.5">{item.category}</p>
-                  </div>
-                  <button onClick={() => removeItem(item.menuItemId)} className="text-red-400 hover:text-red-600 transition">
-                    <IoTrashOutline className="text-lg" />
-                  </button>
-                </div>
-                <div className="flex items-center justify-between">
-                  <p className="text-sm font-semibold text-[#4a6741]">
-                    ₱{item.price} × {item.quantity} = <span className="font-extrabold">₱{item.price * item.quantity}</span>
-                  </p>
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={() => updateQty(item.menuItemId, -1)}
-                      className="w-7 h-7 rounded-full border border-gray-300 flex items-center justify-center hover:bg-gray-100 transition"
-                    >
-                      <IoRemoveOutline className="text-gray-600 text-sm" />
-                    </button>
-                    <span className="w-6 text-center text-sm font-bold text-gray-800">{item.quantity}</span>
-                    <button
-                      onClick={() => updateQty(item.menuItemId, 1)}
-                      className="w-7 h-7 rounded-full border border-gray-300 flex items-center justify-center hover:bg-gray-100 transition"
-                    >
-                      <IoAddOutline className="text-gray-600 text-sm" />
-                    </button>
-                  </div>
-                </div>
-              </div>
-            ))}
+      <div className="px-5 pt-4 pb-3 flex items-center justify-between bg-white dark:bg-[#1a2416] border-b border-gray-100 dark:border-[#2b3924] flex-shrink-0 shadow-xs z-10">
+        <div className="flex items-center gap-3">
+          <button
+            onClick={onBack}
+            className="w-9 h-9 rounded-full bg-gray-100 dark:bg-[#2e4028] text-gray-600 dark:text-gray-200 flex items-center justify-center hover:bg-gray-200 dark:hover:bg-[#3a5333] active:scale-95 transition"
+            title="Back to menu"
+          >
+            <IoArrowBackOutline className="text-lg" />
+          </button>
+          <div>
+            <h2 className="text-xl font-extrabold text-gray-800 dark:text-gray-100 leading-tight">My Cart</h2>
+            <p className="text-xs text-gray-400 dark:text-gray-400 font-medium">
+              {totalItemsCount} {totalItemsCount === 1 ? "item" : "items"} in order
+            </p>
           </div>
+        </div>
+
+        {cart.length > 0 && (
+          <button
+            onClick={() => setCart([])}
+            className="text-xs text-red-500 hover:text-red-600 dark:text-red-400 font-semibold px-2.5 py-1 rounded-lg hover:bg-red-50 dark:hover:bg-red-950/40 transition"
+          >
+            Clear All
+          </button>
         )}
       </div>
 
-      {/* Summary + Place Order */}
-      {cart.length > 0 && (
-        <div className="flex-shrink-0 px-4 pb-24 pt-2">
-          <div className="bg-[#d7ecc8] rounded-2xl px-5 py-4 mb-3">
-            <div className="flex justify-between text-sm text-gray-600 mb-1">
-              <span>Subtotal</span>
-              <span>₱{total}</span>
+      {/* Cart Items List (Independently Scrollable) */}
+      <div className="flex-1 overflow-y-auto px-4 py-3 min-h-0 space-y-3">
+        {cart.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-20 text-center px-4">
+            <div className="w-16 h-16 bg-gray-100 dark:bg-[#24301f] text-gray-400 dark:text-gray-500 rounded-3xl flex items-center justify-center mb-3">
+              <IoCartOutline className="text-3xl" />
             </div>
-            <div className="flex justify-between font-extrabold text-[#4a6741]">
-              <span>Total</span>
-              <span>₱{total}</span>
+            <p className="font-extrabold text-gray-700 dark:text-gray-200 text-base mb-1">Your cart is empty</p>
+            <p className="text-xs text-gray-400 dark:text-gray-400 max-w-xs mb-4">
+              Explore our canteen menu and add your favorite meals and drinks!
+            </p>
+            <button
+              onClick={onBack}
+              className="px-5 py-2.5 bg-[#4a6741] text-white text-xs font-bold rounded-xl hover:bg-[#3a5333] active:scale-95 transition shadow-sm"
+            >
+              Browse Menu
+            </button>
+          </div>
+        ) : (
+          cart.map((item) => (
+            <div
+              key={item.menuItemId}
+              className="bg-white dark:bg-[#1a2416] rounded-2xl border border-gray-100 dark:border-[#2b3924] shadow-xs p-3.5 flex flex-col gap-2.5 hover:border-[#4a6741]/30 transition"
+            >
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0 flex-1">
+                  <p className="font-extrabold text-gray-800 dark:text-gray-100 text-sm truncate">{item.name}</p>
+                  <span className="inline-block text-[10px] bg-gray-100 dark:bg-[#24301f] text-gray-500 dark:text-gray-400 px-2 py-0.5 rounded-md font-medium mt-0.5">
+                    {item.category}
+                  </span>
+                </div>
+                <button
+                  onClick={() => removeItem(item.menuItemId)}
+                  className="p-1 text-gray-300 hover:text-red-500 dark:text-gray-400 dark:hover:text-red-400 transition"
+                  title="Remove item"
+                >
+                  <IoTrashOutline className="text-lg" />
+                </button>
+              </div>
+
+              <div className="flex items-center justify-between pt-1 border-t border-gray-50 dark:border-[#2b3924]">
+                <p className="text-xs font-medium text-gray-500 dark:text-gray-400">
+                  ₱{item.price} × {item.quantity} = <span className="font-extrabold text-[#4a6741] dark:text-[#8ebd7e] text-sm">₱{item.price * item.quantity}</span>
+                </p>
+                <div className="flex items-center gap-2 bg-gray-50 dark:bg-[#24301f] p-1 rounded-xl border border-gray-100 dark:border-[#2b3924]">
+                  <button
+                    onClick={() => updateQty(item.menuItemId, -1)}
+                    className="w-7 h-7 rounded-lg bg-white dark:bg-[#1a2416] border border-gray-200 dark:border-[#2b3924] flex items-center justify-center text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-[#2e4028] active:scale-95 transition shadow-2xs"
+                  >
+                    <IoRemoveOutline className="text-sm" />
+                  </button>
+                  <span className="w-6 text-center text-xs font-extrabold text-gray-800 dark:text-gray-100 font-mono">
+                    {item.quantity}
+                  </span>
+                  <button
+                    onClick={() => updateQty(item.menuItemId, 1)}
+                    className="w-7 h-7 rounded-lg bg-[#4a6741] text-white flex items-center justify-center hover:bg-[#3a5333] active:scale-95 transition shadow-2xs"
+                  >
+                    <IoAddOutline className="text-sm" />
+                  </button>
+                </div>
+              </div>
+            </div>
+          ))
+        )}
+      </div>
+
+      {/* Fixed Sticky Subtotal & Place Order Section */}
+      {cart.length > 0 && (
+        <div className="flex-shrink-0 bg-white dark:bg-[#1a2416] border-t border-gray-100 dark:border-[#2b3924] px-4 pt-3 pb-3 shadow-lg z-20">
+          {/* Subtotal & Total Box */}
+          <div className="bg-[#f0f7ec] dark:bg-[#2e4028]/70 rounded-2xl p-3.5 mb-2.5 border border-[#4a6741]/15 dark:border-[#8ebd7e]/20">
+            <div className="flex justify-between text-xs text-gray-600 dark:text-gray-300 mb-1 font-medium">
+              <span>Subtotal ({totalItemsCount} {totalItemsCount === 1 ? "item" : "items"})</span>
+              <span className="font-semibold text-gray-800 dark:text-gray-200">₱{total}</span>
+            </div>
+            <div className="flex justify-between items-center text-base font-extrabold text-[#4a6741] dark:text-[#8ebd7e] pt-1 border-t border-[#4a6741]/10 dark:border-[#8ebd7e]/20">
+              <span>Total Amount</span>
+              <span className="text-lg">₱{total}</span>
             </div>
           </div>
 
-          {error && <p className="text-xs text-red-500 text-center mb-2">{error}</p>}
+          {error && <p className="text-xs text-red-500 font-semibold text-center mb-2">{error}</p>}
 
           <button
             onClick={handlePlaceOrder}
             disabled={placing}
-            className="w-full bg-[#4a6741] hover:bg-[#3a5333] disabled:opacity-60 text-white font-bold py-3.5 rounded-2xl flex items-center justify-center gap-2 transition text-sm"
+            className="w-full bg-[#4a6741] hover:bg-[#3a5333] active:scale-[0.99] disabled:opacity-60 text-white font-extrabold py-3.5 rounded-2xl flex items-center justify-center gap-2 transition text-sm shadow-md"
           >
-            <IoCartOutline className="text-base" />
-            {placing ? "Placing Order..." : "Place Order"}
+            <IoCartOutline className="text-lg" />
+            <span>{placing ? "Placing Order..." : `Place Order • ₱${total}`}</span>
           </button>
-          <p className="text-center text-xs text-gray-400 mt-2">
-            Show your QR code at the counter to complete payment
-          </p>
         </div>
       )}
     </div>
@@ -3065,7 +3100,7 @@ export default function StudentDashboard() {
       {/* ── Tab Content ── */}
       <div
         key={showProfile ? "profile" : activeNav === "menu" ? `menu-${menuView}` : activeNav}
-        className="flex-1 flex flex-col overflow-hidden animate-student-page-fade-in"
+        className="flex-1 flex flex-col min-h-0 overflow-hidden animate-student-page-fade-in"
       >
         {showProfile ? (
           <ProfileView student={student} onClose={() => setShowProfile(false)} onLogout={handleLogout} />
