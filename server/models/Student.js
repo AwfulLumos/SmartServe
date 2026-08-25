@@ -27,8 +27,11 @@ const studentSchema = new mongoose.Schema(
     department: { type: String, default: "" },
     password: { type: String, required: true },
     isActive: { type: Boolean, default: true },
+    isDeleted: { type: Boolean, default: false },
+    deletedAt: { type: Date, default: null },
     points: { type: Number, default: 0 },
     byocCount: { type: Number, default: 0 },
+    profileImage: { type: String, default: "" },
     // Unique QR token derived from schoolId — used in Rewards scanning
     qrToken: { type: String, unique: true, sparse: true },
     resetCode: { type: String, default: null },

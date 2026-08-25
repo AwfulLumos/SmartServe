@@ -59,7 +59,7 @@ exports.getIncomeForecast = async (req, res) => {
     if (range) {
       orderFilter.createdAt = { $gte: range.startDate, $lte: range.endDate };
     }
-    const orders = await Order.find(orderFilter).select("total status createdAt");
+    const orders = await Order.find(orderFilter).select("items total status createdAt");
 
     const result = buildIncomeForecast({ orders, options });
     res.json({

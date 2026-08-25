@@ -13,6 +13,7 @@ import {
 } from "react-icons/io5";
 import AdminLayout from "../../components/AdminLayout";
 import api from "../../utils/api";
+import { SkeletonTable } from "../../components/SkeletonLoader";
 
 // ─── Status helpers ───────────────────────────────────────────────────────────
 // Status lookup with styling. Why: Consistent UI for each stock state
@@ -257,11 +258,19 @@ export default function Inventory() {
   return (
     <AdminLayout breadcrumb="Inventory">
       {/* ── Header ── */}
-      <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-bold text-[#4a6741]">Inventory Management</h1>
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
+        <div>
+          <h1 className="text-2xl font-extrabold text-[#4a6741] flex items-center gap-2">
+            <IoCubeOutline className="text-3xl" />
+            Inventory Management
+          </h1>
+          <p className="text-xs text-gray-500 mt-1">
+            Track ingredient stock levels, update threshold alerts, and manage item pricing
+          </p>
+        </div>
         <button
           onClick={openAdd}
-          className="flex items-center gap-2 bg-[#4a6741] hover:bg-[#3a5333] text-white text-sm font-semibold px-5 py-2.5 rounded-xl transition shadow-sm"
+          className="flex items-center gap-2 bg-[#4a6741] hover:bg-[#3a5333] text-white text-sm font-semibold px-5 py-2.5 rounded-xl transition shadow-sm self-start sm:self-auto"
         >
           <IoAddOutline className="text-lg" />
           Add Item
@@ -292,38 +301,53 @@ export default function Inventory() {
         </div>
       </div>
 
-      {/* ── Filters ── */}
-      <div className="flex items-center gap-2 mb-4 flex-wrap">
-        {filters.map((f) => (
-          <button
-            key={f.key}
-            onClick={() => setActiveFilter(f.key)}
-            className={`px-4 py-2 rounded-xl text-sm font-semibold border transition
-              ${activeFilter === f.key
-                ? "bg-[#4a6741] text-white border-[#4a6741] shadow-sm"
-                : "bg-white text-gray-600 border-gray-200 hover:border-[#4a6741]/40 hover:text-[#4a6741]"
-              }`}
-          >
-            {f.label}
-          </button>
-        ))}
-        <div className="ml-auto flex items-center gap-2">
-          <div className="flex items-center gap-2 bg-white border border-gray-200 rounded-xl px-3 py-2 focus-within:border-[#4a6741] transition">
-            <IoSearchOutline className="text-gray-400 text-sm flex-shrink-0" />
-            <input
-              type="text"
-              placeholder="Search items…"
-              value={search}
-              onChange={(e) => { setSearch(e.target.value); }}
-              className="text-sm text-gray-700 placeholder-gray-400 bg-transparent outline-none w-40"
-            />
+      {/* ── Search & Filter Controls Card Container ── */}
+      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 mb-6 flex flex-col md:flex-row md:items-center justify-between gap-4">
+        {/* Search Input */}
+        <div className="flex-1 min-w-[240px] relative">
+          <IoSearchOutline className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 text-base" />
+          <input
+            type="text"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search items by name or category…"
+            className="w-full pl-10 pr-9 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm outline-none focus:border-[#4a6741] focus:bg-white transition"
+          />
+          {search && (
+            <button
+              onClick={() => setSearch("")}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition"
+              title="Clear search"
+            >
+              <IoCloseOutline className="text-lg" />
+            </button>
+          )}
+        </div>
+
+        {/* Filter Pills & Refresh */}
+        <div className="flex items-center gap-3 flex-wrap">
+          <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5 sm:pb-0">
+            {filters.map((f) => (
+              <button
+                key={f.key}
+                onClick={() => setActiveFilter(f.key)}
+                className={`px-4 py-2 rounded-xl text-xs font-semibold border transition whitespace-nowrap
+                  ${activeFilter === f.key
+                    ? "bg-[#4a6741] text-white border-[#4a6741] shadow-sm"
+                    : "bg-gray-50 text-gray-600 border-gray-200 hover:border-[#4a6741]/40 hover:text-[#4a6741]"
+                  }`}
+              >
+                {f.label}
+              </button>
+            ))}
           </div>
+
           <button
             onClick={fetchItems}
-            className="p-2 bg-white border border-gray-200 rounded-xl text-gray-500 hover:text-[#4a6741] hover:border-[#4a6741]/40 transition"
+            className="p-2.5 bg-gray-50 border border-gray-200 rounded-xl text-gray-500 hover:text-[#4a6741] hover:border-[#4a6741]/40 transition ml-auto md:ml-0"
             title="Refresh"
           >
-            <IoRefreshOutline className="text-base" />
+            <IoRefreshOutline className={`text-base ${loading ? "animate-spin" : ""}`} />
           </button>
         </div>
       </div>
@@ -331,7 +355,7 @@ export default function Inventory() {
       {/* ── Table ── */}
       <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
         {/* Table header */}
-        <div className="grid grid-cols-[2fr_1.2fr_1.1fr_1.1fr_0.9fr_1fr_80px] items-center px-5 py-3 bg-[#e8f5e2] text-sm font-semibold text-[#4a6741]">
+        <div className="grid grid-cols-[2fr_1.2fr_1.1fr_1.1fr_0.9fr_1fr_80px] items-center px-5 py-3 bg-gray-50 border-b border-gray-100 text-xs font-semibold text-gray-400 uppercase tracking-wide rounded-t-2xl">
           <span>Item Name</span>
           <span>Category</span>
           <span>Quantity</span>
@@ -342,12 +366,12 @@ export default function Inventory() {
         </div>
 
         {loading ? (
-          <div className="flex items-center justify-center py-16 text-gray-400 text-sm gap-2">
-            <IoRefreshOutline className="animate-spin text-lg" /> Loading…
+          <div className="p-4">
+            <SkeletonTable rows={6} columns={6} showHeader={false} />
           </div>
         ) : items.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16 text-gray-400 gap-2">
-            <IoCubeOutline className="text-4xl" />
+            <IoCubeOutline className="text-4xl text-gray-300" />
             <p className="text-sm">{search ? "No items match your search." : "No inventory items yet."}</p>
           </div>
         ) : (
@@ -367,11 +391,11 @@ export default function Inventory() {
                     <div className="w-8 h-8 rounded-lg bg-gray-100 flex items-center justify-center flex-shrink-0">
                       <IoCubeOutline className="text-gray-400 text-sm" />
                     </div>
-                    <span className="text-sm font-semibold text-gray-800">{item.name}</span>
+                    <span className="text-sm font-medium text-gray-800 truncate">{item.name}</span>
                   </div>
 
                   {/* Category */}
-                  <span className="text-sm text-gray-500">{item.category}</span>
+                  <span className="text-xs text-gray-500 truncate">{item.category}</span>
 
                   {/* Quantity — inline editable */}
                   <div className="flex flex-col gap-0.5">
@@ -387,33 +411,33 @@ export default function Inventory() {
                           if (e.key === "Enter") commitQty(item);
                           if (e.key === "Escape") setEditingQtyId(null);
                         }}
-                        className="w-20 px-2 py-1 border border-[#4a6741] rounded-lg text-sm font-semibold text-gray-800 focus:outline-none focus:ring-1 focus:ring-[#4a6741]/30"
+                        className="w-20 px-2 py-1 border border-[#4a6741] rounded-lg text-xs font-semibold text-gray-800 focus:outline-none focus:ring-1 focus:ring-[#4a6741]/30"
                       />
                     ) : (
                       <button
                         onClick={() => startEditQty(item)}
-                        className="w-20 px-2 py-1 border border-gray-200 rounded-lg text-sm font-semibold text-gray-800 text-left hover:border-[#4a6741]/50 transition bg-white"
+                        className="w-20 px-2 py-1 border border-gray-200 rounded-lg text-xs font-semibold text-gray-800 text-left hover:border-[#4a6741]/50 transition bg-white"
                         title="Click to edit"
                       >
                         {item.quantity}
                       </button>
                     )}
-                    <span className="text-xs text-gray-400 pl-2">{item.unit}</span>
+                    <span className="text-[11px] text-gray-400 pl-2">{item.unit}</span>
                   </div>
 
                   {/* Min Threshold */}
-                  <span className="text-sm text-gray-500">
+                  <span className="text-xs text-gray-500">
                     {item.minThreshold} {item.unit}
                   </span>
 
                   {/* Price */}
-                  <span className="text-sm font-semibold text-gray-800">
+                  <span className="text-sm font-bold text-gray-800">
                     ₱{Number(item.price).toLocaleString()}
                   </span>
 
                   {/* Status */}
                   <span>
-                    <span className={`inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full ${statusInfo.badge}`}>
+                    <span className={`inline-flex items-center gap-1.5 text-[10px] font-semibold px-2.5 py-0.5 rounded-full ${statusInfo.badge}`}>
                       <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${statusInfo.dot}`} />
                       {statusInfo.label}
                     </span>
@@ -441,6 +465,13 @@ export default function Inventory() {
             })}
           </ul>
         )}
+
+        {/* Footer */}
+        <div className="flex items-center justify-between px-5 py-3 border-t border-gray-100 bg-gray-50 rounded-b-2xl">
+          <p className="text-xs text-gray-400">
+            Showing <span className="font-semibold text-gray-700">{items.length}</span> item{items.length !== 1 ? "s" : ""}
+          </p>
+        </div>
       </div>
 
       {/* ── Add / Edit Modal ── */}

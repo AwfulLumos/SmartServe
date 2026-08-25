@@ -23,8 +23,9 @@ connectDB();
 
 // Middleware
 app.use(cors({ origin: process.env.CLIENT_URL || "http://localhost:5173" }));
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+app.use(express.json({ limit: "10mb" }));
+app.use(express.urlencoded({ limit: "10mb", extended: true }));
+app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
 // Routes
 app.use("/api/auth", require("./routes/authRoutes"));
@@ -41,6 +42,7 @@ app.use("/api/points-config", require("./routes/pointsConfigRoutes"));
 app.use("/api/audit-logs", require("./routes/auditLogRoutes"));
 app.use("/api/dashboard", require("./routes/dashboardRoutes"));
 app.use("/api/notifications", require("./routes/notificationRoutes"));
+app.use("/api/feedback", require("./routes/feedbackRoutes"));
 app.use("/api/sample", require("./routes/sampleRoutes"));
 
 // Health check

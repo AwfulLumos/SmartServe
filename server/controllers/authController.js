@@ -1,4 +1,6 @@
 const jwt = require("jsonwebtoken");
+const fs = require("fs");
+const path = require("path");
 const User = require("../models/User");
 const logAudit = require("../utils/auditLogger");
 
@@ -80,12 +82,20 @@ exports.login = async (req, res) => {
       category: "auth",
     });
 
+    user.lastLoginAt = new Date();
+    user.loginCount = (user.loginCount || 0) + 1;
+    await user.save({ validateBeforeSave: false });
+
     res.json({
       _id: user._id,
       fullName: user.fullName,
       email: user.email,
       username: user.username,
       role: user.role,
+      profileImageUrl: user.profileImageUrl || "",
+      lastLoginAt: user.lastLoginAt,
+      loginCount: user.loginCount || 0,
+      createdAt: user.createdAt,
       token: generateToken(user._id),
     });
   } catch (error) {
@@ -96,6 +106,146 @@ exports.login = async (req, res) => {
 // GET /api/auth/me  (protected)
 exports.getMe = async (req, res) => {
   res.json(req.user);
+};
+
+// PATCH /api/auth/me/profile (protected - update own profile)
+exports.updateMyProfile = async (req, res) => {
+  try {
+    const user = await User.findById(req.user._id);
+    if (!user) return res.status(404).json({ message: "User not found" });
+
+    const fullName = req.body.fullName?.trim();
+    const username = req.body.username?.trim().toLowerCase();
+    const email = req.body.email?.trim().toLowerCase();
+
+    if (fullName !== undefined && !fullName) {
+      return res.status(400).json({ message: "Full name is required" });
+    }
+    if (username !== undefined && !username) {
+      return res.status(400).json({ message: "Username is required" });
+    }
+    if (email !== undefined && !email) {
+      return res.status(400).json({ message: "Email is required" });
+    }
+
+    if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      return res.status(400).json({ message: "Invalid email format" });
+    }
+
+    if (username && !/^[a-z0-9._-]{3,30}$/.test(username)) {
+      return res.status(400).json({ message: "Username must be 3-30 chars (letters, numbers, . _ -)" });
+    }
+
+    if (email && email !== user.email) {
+      const existingEmail = await User.findOne({ email, _id: { $ne: user._id } });
+      if (existingEmail) {
+        return res.status(409).json({ message: "Email is already in use" });
+      }
+      user.email = email;
+    }
+
+    if (username && username !== user.username) {
+      const existingUsername = await User.findOne({ username, _id: { $ne: user._id } });
+      if (existingUsername) {
+        return res.status(409).json({ message: "Username is already in use" });
+      }
+      user.username = username;
+    }
+
+    if (fullName) user.fullName = fullName;
+
+    await user.save();
+
+    logAudit({
+      action: "Profile Updated",
+      actorType: user.role,
+      actorId: user._id,
+      actorName: user.fullName,
+      description: `${user.fullName} updated their profile`,
+      category: "auth",
+    });
+
+    res.json({
+      _id: user._id,
+      fullName: user.fullName,
+      email: user.email,
+      username: user.username,
+      role: user.role,
+      profileImageUrl: user.profileImageUrl || "",
+      lastLoginAt: user.lastLoginAt,
+      loginCount: user.loginCount || 0,
+      createdAt: user.createdAt,
+      token: req.headers.authorization?.split(" ")[1],
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// POST /api/auth/me/profile-image (protected - upload own profile image)
+exports.uploadMyProfileImage = async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ message: "No image file uploaded" });
+    }
+
+    const user = await User.findById(req.user._id);
+    if (!user) return res.status(404).json({ message: "User not found" });
+
+    if (user.profileImageUrl && user.profileImageUrl.startsWith("/uploads/profiles/")) {
+      const relativeFile = user.profileImageUrl.replace(/^\//, "");
+      const previousPath = path.join(__dirname, "..", relativeFile);
+      if (fs.existsSync(previousPath)) {
+        fs.unlink(previousPath, () => {});
+      }
+    }
+
+    user.profileImageUrl = `/uploads/profiles/${req.file.filename}`;
+    await user.save({ validateBeforeSave: false });
+
+    res.json({
+      _id: user._id,
+      fullName: user.fullName,
+      email: user.email,
+      username: user.username,
+      role: user.role,
+      profileImageUrl: user.profileImageUrl,
+      lastLoginAt: user.lastLoginAt,
+      loginCount: user.loginCount || 0,
+      createdAt: user.createdAt,
+      token: req.headers.authorization?.split(" ")[1],
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// DELETE /api/auth/me/profile (protected - delete own account)
+exports.deleteMyProfile = async (req, res) => {
+  try {
+    const user = await User.findById(req.user._id);
+    if (!user) return res.status(404).json({ message: "User not found" });
+
+    const adminsCount = await User.countDocuments({ role: "admin", isApproved: true });
+    if (user.role === "admin" && adminsCount <= 1) {
+      return res.status(400).json({ message: "Cannot delete the last admin account" });
+    }
+
+    await User.findByIdAndDelete(req.user._id);
+
+    logAudit({
+      action: "Profile Deleted",
+      actorType: user.role,
+      actorId: user._id,
+      actorName: user.fullName,
+      description: `${user.fullName} deleted their own account`,
+      category: "auth",
+    });
+
+    res.json({ message: "Account deleted successfully" });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
 };
 
 // GET /api/auth/pending  (admin only — list unapproved users)

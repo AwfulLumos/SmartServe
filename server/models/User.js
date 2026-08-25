@@ -27,6 +27,9 @@ const userSchema = new mongoose.Schema(
     isApproved: { type: Boolean, default: false },
     resetCode: { type: String, default: null },
     resetCodeExpiry: { type: Date, default: null },
+    profileImageUrl: { type: String, default: "" },
+    lastLoginAt: { type: Date, default: null },
+    loginCount: { type: Number, default: 0 },
   },
   { timestamps: true }
 );

@@ -22,10 +22,12 @@ import {
   IoSettingsOutline,
   IoSaveOutline,
   IoCheckmarkOutline,
-  IoArrowForwardOutline,
+  IoCloudUploadOutline,
+  IoChevronDownOutline,
 } from "react-icons/io5";
 import AdminLayout from "../../components/AdminLayout";
 import api from "../../utils/api";
+import { SkeletonTable, SkeletonCardGrid } from "../../components/SkeletonLoader";
 
 // ─────────────────────────────
 // Shared Helpers
@@ -67,6 +69,68 @@ const fmt = (date) => {
   const d = new Date(date);
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")} ${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
 };
+
+// Custom Filter Select component matching RegisterStudent.jsx, Orders.jsx, and MenuManagement.jsx
+function CustomFilterSelect({ value, onChange, options, icon: Icon, placeholder = "Select...", className = "" }) {
+  const [open, setOpen] = useState(false);
+  const containerRef = useRef(null);
+
+  useEffect(() => {
+    function handleClickOutside(e) {
+      if (containerRef.current && !containerRef.current.contains(e.target)) {
+        setOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const selectedOpt = options.find((o) => String(o.value) === String(value)) || options[0];
+
+  return (
+    <div ref={containerRef} className={`relative inline-block ${className}`}>
+      <button
+        type="button"
+        onClick={() => setOpen((prev) => !prev)}
+        className={`bg-gray-50 hover:bg-white border text-gray-700 text-xs font-semibold rounded-xl px-3.5 py-2.5 flex items-center justify-between gap-2 shadow-sm transition outline-none ${value && value !== "all" && value !== "" ? "border-[#4a6741] text-[#4a6741] bg-[#d7ecc8]/25" : "border-gray-200"
+          }`}
+      >
+        <span className="flex items-center gap-1.5 truncate">
+          {Icon && <Icon className="text-gray-400 text-sm flex-shrink-0" />}
+          <span>{selectedOpt?.label || placeholder}</span>
+        </span>
+        <IoChevronDownOutline
+          className={`text-gray-400 text-xs transition-transform duration-200 ${open ? "rotate-180 text-[#4a6741]" : ""}`}
+        />
+      </button>
+
+      {open && (
+        <div className="absolute right-0 mt-1.5 w-48 bg-white rounded-2xl shadow-xl border border-gray-100 py-1.5 z-50 animate-in fade-in zoom-in-95 duration-150 max-h-60 overflow-y-auto">
+          {options.map((opt) => {
+            const isSelected = String(opt.value) === String(value);
+            return (
+              <button
+                key={opt.value}
+                type="button"
+                onClick={() => {
+                  onChange(opt.value);
+                  setOpen(false);
+                }}
+                className={`w-full text-left px-3.5 py-2 text-xs font-semibold flex items-center justify-between transition ${isSelected
+                  ? "bg-[#e8f5e2] text-[#4a6741] font-bold"
+                  : "text-gray-700 hover:bg-gray-50 hover:text-gray-900"
+                  }`}
+              >
+                <span>{opt.label}</span>
+                {isSelected && <IoCheckmarkOutline className="text-[#4a6741] text-sm flex-shrink-0" />}
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
 
 // TABS: An array of objects defining the tabs in the rewards page.
 // Used to render the tab navigation and switch between different sections.
@@ -146,7 +210,7 @@ function PointsConfigSection() {
           minRedemptionPoints: String(d.minRedemptionPoints),
         });
       })
-      .catch(() => {})
+      .catch(() => { })
       .finally(() => setLoading(false));
   }, []);
 
@@ -269,22 +333,11 @@ const emptyRewardForm = { name: "", description: "", type: "free_item", pointsCo
 // Used in the main Rewards component when the "configure" tab is active.
 // Runs when the user switches to the Configure tab.
 function ConfigureTab() {
-  // useState hooks: Store various pieces of state for the component.
-
-  // rewards: Stores the list of rewards fetched from the server.
-  // Used to display the rewards in a grid.
   const [rewards, setRewards] = useState([]);
-
-  // total: Stores the total number of rewards.
-  // Used to display stats in the sub-header.
   const [total, setTotal] = useState(0);
-
-  // active: Stores the number of active rewards.
-  // Used to display stats in the sub-header.
   const [active, setActive] = useState(0);
-
-  // loading: Tracks if rewards are being fetched.
-  // Used to show a loading spinner.
+  const [typeFilter, setTypeFilter] = useState("all");
+  const [statusFilter, setStatusFilter] = useState("all");
   const [loading, setLoading] = useState(true);
 
   // modalOpen: Tracks if the add/edit modal is open.
@@ -403,41 +456,77 @@ function ConfigureTab() {
     catch { setDeleteTarget(null); } finally { setDeleting(false); }
   };
 
-  // return: The JSX that defines what the ConfigureTab component renders.
-  // Purpose: Displays the points config, rewards list, modals, etc.
-  // Runs every time the component re-renders.
+  const filteredRewards = rewards.filter((r) => {
+    if (typeFilter !== "all" && r.type !== typeFilter) return false;
+    if (statusFilter === "active" && !r.isActive) return false;
+    if (statusFilter === "inactive" && r.isActive) return false;
+    return true;
+  });
+
   return (
     <div>
       {/* Points Configuration: Includes the PointsConfigSection component. */}
       <PointsConfigSection />
 
-      {/* Sub-header: Shows stats and add button. */}
-      <div className="flex items-center justify-between mb-5">
+      {/* Controls Card: Filters & Actions */}
+      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 mb-6 flex flex-col md:flex-row items-center justify-between gap-4">
+        {/* Stat counter */}
         <p className="text-sm text-gray-500">
+          Showing <span className="font-semibold text-gray-700">{filteredRewards.length}</span> of{" "}
           <span className="font-semibold text-gray-700">{total}</span> reward{total !== 1 ? "s" : ""} •{" "}
           <span className="font-semibold text-[#4a6741]">{active}</span> active
         </p>
-        <button
-          onClick={openAdd}
-          className="flex items-center gap-2 bg-[#4a6741] hover:bg-[#3a5333] text-white text-sm font-semibold px-5 py-2.5 rounded-xl transition shadow-sm"
-        >
-          <IoAddOutline className="text-base" />
-          Add New Reward
-        </button>
+
+        {/* Filters & Add Action */}
+        <div className="flex items-center gap-3 w-full md:w-auto justify-end flex-wrap">
+          <CustomFilterSelect
+            value={typeFilter}
+            onChange={setTypeFilter}
+            options={[
+              { value: "all", label: "All Types" },
+              { value: "free_item", label: "Free Item" },
+              { value: "discount", label: "Discount" },
+              { value: "eco_badge", label: "Eco Badge" },
+            ]}
+          />
+          <CustomFilterSelect
+            value={statusFilter}
+            onChange={setStatusFilter}
+            options={[
+              { value: "all", label: "All Statuses" },
+              { value: "active", label: "Active" },
+              { value: "inactive", label: "Inactive" },
+            ]}
+          />
+          <button
+            onClick={fetchRewards}
+            className="p-2.5 bg-gray-50 border border-gray-200 rounded-xl text-gray-500 hover:text-[#4a6741] hover:border-[#4a6741]/40 transition"
+            title="Refresh"
+          >
+            <IoRefreshOutline className={`text-base ${loading ? "animate-spin" : ""}`} />
+          </button>
+          <button
+            onClick={openAdd}
+            className="flex items-center gap-2 bg-[#4a6741] hover:bg-[#3a5333] text-white text-sm font-semibold px-4 py-2.5 rounded-xl transition shadow-sm"
+          >
+            <IoAddOutline className="text-base" />
+            Add Reward
+          </button>
+        </div>
       </div>
 
       {/* Conditional rendering: Shows loading, empty state, or rewards grid. */}
       {loading ? (
-        <div className="flex justify-center py-16 text-gray-400 text-sm gap-2"><IoRefreshOutline className="animate-spin text-lg" /> Loading…</div>
-      ) : rewards.length === 0 ? (
+        <SkeletonCardGrid count={6} />
+      ) : filteredRewards.length === 0 ? (
         <div className="flex flex-col items-center py-16 text-gray-400 gap-2">
           <IoGiftOutline className="text-4xl" />
-          <p className="text-sm">No rewards configured yet.</p>
+          <p className="text-sm">{typeFilter !== "all" || statusFilter !== "all" ? "No rewards match the selected filters." : "No rewards configured yet."}</p>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {/* Map over rewards to render each reward card. */}
-          {rewards.map((r) => (
+          {filteredRewards.map((r) => (
             <div key={r._id} className={`bg-white border rounded-2xl p-5 shadow-sm flex flex-col gap-3 ${!r.isActive ? "opacity-60" : ""}`}>
               {/* Icon + Name: Displays the reward's icon and name. */}
               <div className="flex items-start gap-3">
@@ -656,7 +745,7 @@ function RedeemTab() {
   useEffect(() => {
     api.get("/rewards", { params: { activeOnly: "true" } })
       .then(({ data }) => setRewards(data.rewards))
-      .catch(() => {});
+      .catch(() => { });
     return () => stopScanner();
   }, []);
 
@@ -665,7 +754,7 @@ function RedeemTab() {
   // Runs when scanning is cancelled or after successful scan.
   const stopScanner = () => {
     if (html5QrRef.current) {
-      html5QrRef.current.stop().catch(() => {});
+      html5QrRef.current.stop().catch(() => { });
       html5QrRef.current = null;
     }
     setScanning(false);
@@ -688,11 +777,31 @@ function RedeemTab() {
           stopScanner();
           await lookupStudent(decodedText.trim());
         },
-        () => {}
+        () => { }
       );
     } catch (err) {
       setScanning(false);
       setScanError("Camera access denied or not available. Please allow camera permissions.");
+    }
+  };
+
+  // handleFileUpload: Async function to process uploaded QR code image files.
+  // Purpose: Reads student QR code directly from an uploaded image file.
+  const handleFileUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setScanError("");
+    setLoadingStudent(true);
+    try {
+      const { Html5Qrcode } = await import("html5-qrcode");
+      const html5QrCode = new Html5Qrcode("qr-reader-file-temp");
+      const decodedText = await html5QrCode.scanFile(file, false);
+      await lookupStudent(decodedText.trim());
+    } catch (err) {
+      setScanError("Could not read QR code from the uploaded image. Please ensure the QR code image is clear.");
+    } finally {
+      setLoadingStudent(false);
+      e.target.value = "";
     }
   };
 
@@ -756,15 +865,38 @@ function RedeemTab() {
               ${scanning ? "border-[#4a6741]" : "border-gray-200 cursor-pointer hover:border-[#4a6741]/60"}`}
           >
             <div id="qr-reader" ref={scannerRef} className={scanning ? "block" : "hidden"} />
+            <div id="qr-reader-file-temp" className="hidden" />
             {!scanning && (
-              <div className="flex flex-col items-center justify-center py-16 gap-3 text-gray-400">
+              <div className="flex flex-col items-center justify-center py-12 gap-3 text-gray-400">
                 {loadingStudent ? (
                   <IoRefreshOutline className="text-5xl animate-spin text-[#4a6741]" />
                 ) : (
                   <>
                     <IoCameraOutline className="text-5xl text-gray-300" />
-                    <p className="font-semibold text-gray-600">Click to Scan QR Code</p>
-                    <p className="text-sm">Position student QR code in front of camera</p>
+                    <p className="font-semibold text-gray-600">Scan or Upload Student QR Code</p>
+                    <p className="text-sm text-gray-400 mb-1">Use camera or select an image file</p>
+
+                    <div className="flex flex-wrap items-center justify-center gap-3 mt-1" onClick={(e) => e.stopPropagation()}>
+                      <button
+                        type="button"
+                        onClick={startScanner}
+                        className="flex items-center gap-2 px-4 py-2.5 bg-[#4a6741] text-white rounded-xl text-xs font-bold hover:bg-[#3a5333] transition shadow-sm"
+                      >
+                        <IoCameraOutline className="text-base" />
+                        Use Camera Scanner
+                      </button>
+
+                      <label className="flex items-center gap-2 px-4 py-2.5 bg-white border border-gray-200 text-gray-700 rounded-xl text-xs font-bold hover:bg-gray-50 transition cursor-pointer shadow-sm">
+                        <IoCloudUploadOutline className="text-base text-[#4a6741]" />
+                        Upload QR Image
+                        <input
+                          type="file"
+                          accept="image/*"
+                          className="hidden"
+                          onChange={handleFileUpload}
+                        />
+                      </label>
+                    </div>
                   </>
                 )}
               </div>
@@ -888,24 +1020,11 @@ function RedeemTab() {
 // Used in the main Rewards component when the "history" tab is active.
 // Runs when the user switches to the History tab.
 function HistoryTab() {
-  // useState hooks.
-
-  // records: Stores the list of redemption records.
-  // Used to display the history table.
   const [records, setRecords] = useState([]);
-
-  // search: Stores the current search query.
-  // Used to filter records by student name or ID.
   const [search, setSearch] = useState("");
-
-  // loading: Tracks if records are being fetched.
-  // Used to show a loading spinner.
+  const [timeframeFilter, setTimeframeFilter] = useState("all");
   const [loading, setLoading] = useState(true);
 
-  // fetchHistory: A memoized function to fetch redemption history.
-  // useCallback: Prevents unnecessary re-creations.
-  // Purpose: Gets filtered redemption records from the server.
-  // Runs when search changes or component mounts.
   const fetchHistory = useCallback(async () => {
     setLoading(true);
     try {
@@ -914,31 +1033,80 @@ function HistoryTab() {
     } catch { /* */ } finally { setLoading(false); }
   }, [search]);
 
-  // useEffect: Calls fetchHistory with debouncing for search.
-  // Purpose: Updates records when search changes, with a delay to avoid too many requests.
-  // Runs when fetchHistory changes (i.e., when search changes).
   useEffect(() => {
     const t = setTimeout(fetchHistory, search ? 400 : 0);
     return () => clearTimeout(t);
   }, [fetchHistory]);
 
-  // return: The JSX for the HistoryTab component.
-  // Purpose: Renders the search bar and history table.
+  const filteredRecords = records.filter((r) => {
+    if (timeframeFilter !== "all") {
+      const recordDate = new Date(r.createdAt);
+      const now = new Date();
+      if (timeframeFilter === "today") {
+        const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        if (recordDate < today) return false;
+      } else if (timeframeFilter === "week") {
+        const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+        if (recordDate < weekAgo) return false;
+      } else if (timeframeFilter === "month") {
+        const monthAgo = new Date(now.getFullYear(), now.getMonth() - 1, now.getDate());
+        if (recordDate < monthAgo) return false;
+      }
+    }
+    return true;
+  });
+
   return (
     <div>
-      {/* Search bar: Allows filtering records. */}
-      <div className="flex items-center gap-2 bg-white border border-gray-200 rounded-xl px-4 py-2.5 mb-4 focus-within:border-[#4a6741] transition">
-        <IoSearchOutline className="text-gray-400 flex-shrink-0" />
-        <input
-          type="text" value={search} onChange={(e) => setSearch(e.target.value)}
-          placeholder="Search by student name or ID..."
-          className="text-sm text-gray-700 placeholder-gray-400 bg-transparent outline-none w-full"
-        />
+      {/* Controls Card: Search & Refresh */}
+      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 mb-6 flex flex-col md:flex-row items-center justify-between gap-4">
+        {/* Search input field */}
+        <div className="relative flex-1 w-full">
+          <IoSearchOutline className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 text-base" />
+          <input
+            type="text"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search by student name or ID..."
+            className="w-full pl-10 pr-9 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm outline-none focus:border-[#4a6741] focus:bg-white transition"
+          />
+          {search && (
+            <button
+              onClick={() => setSearch("")}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition"
+              title="Clear search"
+            >
+              <IoCloseOutline className="text-lg" />
+            </button>
+          )}
+        </div>
+
+        {/* Action Controls */}
+        <div className="flex items-center gap-3 w-full md:w-auto justify-end flex-wrap">
+          <CustomFilterSelect
+            value={timeframeFilter}
+            onChange={setTimeframeFilter}
+            options={[
+              { value: "all", label: "All Time" },
+              { value: "today", label: "Today" },
+              { value: "week", label: "This Week" },
+              { value: "month", label: "This Month" },
+            ]}
+          />
+
+          <button
+            onClick={fetchHistory}
+            className="p-2.5 bg-gray-50 border border-gray-200 rounded-xl text-gray-500 hover:text-[#4a6741] hover:border-[#4a6741]/40 transition ml-auto md:ml-0"
+            title="Refresh"
+          >
+            <IoRefreshOutline className={`text-base ${loading ? "animate-spin" : ""}`} />
+          </button>
+        </div>
       </div>
 
       {/* Table: Displays redemption records. */}
       <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-        <div className="grid grid-cols-[1.5fr_1.2fr_1.2fr_0.8fr_1fr] items-center px-5 py-3 bg-[#e8f5e2] text-sm font-semibold text-[#4a6741]">
+        <div className="grid grid-cols-[1.5fr_1.2fr_1.2fr_0.8fr_1fr] items-center px-5 py-3 bg-gray-50 border-b border-gray-100 text-xs font-semibold text-gray-400 uppercase tracking-wide rounded-t-2xl">
           <span>Student</span>
           <span>School ID</span>
           <span>Reward</span>
@@ -947,28 +1115,38 @@ function HistoryTab() {
         </div>
         {/* Conditional rendering: Shows loading, empty state, or records. */}
         {loading ? (
-          <div className="flex justify-center py-12 text-gray-400 text-sm gap-2"><IoRefreshOutline className="animate-spin text-lg" /> Loading…</div>
-        ) : records.length === 0 ? (
-          <div className="flex flex-col items-center py-12 text-gray-400 gap-2">
-            <IoCalendarOutline className="text-4xl" />
-            <p className="text-sm">{search ? "No records match." : "No redemption history yet."}</p>
+          <div className="p-4">
+            <SkeletonTable rows={6} columns={5} showHeader={false} />
+          </div>
+        ) : filteredRecords.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-16 text-gray-400 gap-2">
+            <IoCalendarOutline className="text-4xl text-gray-300" />
+            <p className="text-sm">{search || timeframeFilter !== "all" ? "No records match." : "No redemption history yet."}</p>
           </div>
         ) : (
           <ul className="divide-y divide-gray-50">
             {/* Map over records to render table rows. */}
-            {records.map((r) => (
+            {filteredRecords.map((r) => (
               <li key={r._id} className="grid grid-cols-[1.5fr_1.2fr_1.2fr_0.8fr_1fr] items-center px-5 py-3.5 hover:bg-gray-50 transition">
-                <span className="text-sm font-medium text-gray-800">{r.studentName}</span>
-                <span className="text-sm text-gray-500 font-mono">{r.schoolId}</span>
-                <span className="flex items-center gap-1.5 text-sm text-gray-700">
+                <span className="text-sm font-medium text-gray-800 truncate">{r.studentName}</span>
+                <span className="font-mono text-xs font-semibold text-[#4a6741]">{r.schoolId}</span>
+                <span className="flex items-center gap-1.5 text-xs text-gray-700 font-medium">
                   <IoGiftOutline className="text-[#4a6741]" />
                   {r.rewardName}
                 </span>
-                <span className="text-sm font-bold text-red-500">-{r.pointsUsed} pts</span>
-                <span className="text-sm text-gray-500">{fmt(r.createdAt)}</span>
+                <span className="text-xs font-bold text-red-500">-{r.pointsUsed} pts</span>
+                <span className="text-xs text-gray-400 font-mono">{fmt(r.createdAt)}</span>
               </li>
             ))}
           </ul>
+        )}
+        {/* Footer */}
+        {!loading && filteredRecords.length > 0 && (
+          <div className="flex items-center justify-between px-5 py-3 border-t border-gray-100 bg-gray-50 rounded-b-2xl">
+            <p className="text-xs text-gray-400">
+              Showing <span className="font-semibold text-gray-700">{filteredRecords.length}</span> record{filteredRecords.length !== 1 ? "s" : ""}
+            </p>
+          </div>
         )}
       </div>
     </div>
@@ -1063,6 +1241,8 @@ function ByocTab() {
   // search: Stores search query for filtering records.
   // Used to filter BYOC records by student name or ID.
   const [search, setSearch] = useState("");
+  const [timeframeFilter, setTimeframeFilter] = useState("all");
+  const [confirmedByFilter, setConfirmedByFilter] = useState("all");
 
   // loading: Tracks if records are loading.
   // Used to show loading spinner for the records list.
@@ -1093,17 +1273,38 @@ function ByocTab() {
   // Purpose: Fetches eco points config and active rewards when the component loads.
   // Runs once when the component first loads.
   useEffect(() => {
-    api.get("/points-config").then(({ data }) => setEcoPoints(data.ecoPointsPerByoc ?? 5)).catch(() => {});
-    api.get("/rewards", { params: { activeOnly: "true" } }).then(({ data }) => setRewards(data.rewards)).catch(() => {});
+    api.get("/points-config").then(({ data }) => setEcoPoints(data.ecoPointsPerByoc ?? 5)).catch(() => { });
+    api.get("/rewards", { params: { activeOnly: "true" } }).then(({ data }) => setRewards(data.rewards)).catch(() => { });
     return () => stopScanner();
   }, []);
+
+  const filteredRecords = records.filter((r) => {
+    if (timeframeFilter !== "all") {
+      const recordDate = new Date(r.createdAt);
+      const now = new Date();
+      if (timeframeFilter === "today") {
+        const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        if (recordDate < today) return false;
+      } else if (timeframeFilter === "week") {
+        const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+        if (recordDate < weekAgo) return false;
+      } else if (timeframeFilter === "month") {
+        const monthAgo = new Date(now.getFullYear(), now.getMonth() - 1, now.getDate());
+        if (recordDate < monthAgo) return false;
+      }
+    }
+    if (confirmedByFilter !== "all") {
+      if ((r.confirmedByRole || "").toLowerCase() !== confirmedByFilter) return false;
+    }
+    return true;
+  });
 
   // stopScanner: Function to stop the QR scanner.
   // Purpose: Cleans up the scanner when not needed.
   // Runs when scanning is cancelled or after successful scan.
   const stopScanner = () => {
     if (html5QrRef.current) {
-      html5QrRef.current.stop().catch(() => {});
+      html5QrRef.current.stop().catch(() => { });
       html5QrRef.current = null;
     }
     setScanning(false);
@@ -1134,11 +1335,36 @@ function ByocTab() {
             setLoadingStudent(false);
           }
         },
-        () => {}
+        () => { }
       );
     } catch {
       setScanning(false);
       setScanError("Camera access denied or not available.");
+    }
+  };
+
+  // handleFileUpload: Async function to process uploaded BYOC QR code image files.
+  // Purpose: Reads student QR code directly from an uploaded image file for BYOC.
+  const handleFileUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setScanError("");
+    setLoadingStudent(true);
+    try {
+      const { Html5Qrcode } = await import("html5-qrcode");
+      const html5QrCode = new Html5Qrcode("qr-byoc-file-temp");
+      const decodedText = await html5QrCode.scanFile(file, false);
+      try {
+        const { data } = await api.get(`/students/by-qr/${encodeURIComponent(decodedText.trim())}`);
+        setConfirmStudent(data);
+      } catch (err) {
+        setScanError(err.response?.data?.message || "QR code not recognised.");
+      }
+    } catch (err) {
+      setScanError("Could not read QR code from the uploaded image. Please ensure the QR code image is clear.");
+    } finally {
+      setLoadingStudent(false);
+      e.target.value = "";
     }
   };
 
@@ -1207,11 +1433,34 @@ function ByocTab() {
               ${scanning || confirmStudent ? "border-[#4a6741]" : "border-gray-200 cursor-pointer hover:border-[#4a6741]/60"}`}
           >
             <div id="qr-byoc-reader" ref={scannerRef} className={scanning ? "block" : "hidden"} />
+            <div id="qr-byoc-file-temp" className="hidden" />
             {!scanning && !loadingStudent && !confirmStudent && (
-              <div className="flex flex-col items-center justify-center py-14 gap-3 text-gray-400">
+              <div className="flex flex-col items-center justify-center py-12 gap-3 text-gray-400">
                 <IoCameraOutline className="text-5xl text-gray-300" />
-                <p className="font-semibold text-gray-600">Click to Scan Student QR</p>
-                <p className="text-sm">Awards +{ecoPoints} eco points to the student</p>
+                <p className="font-semibold text-gray-600">Scan or Upload Student QR Code</p>
+                <p className="text-xs text-gray-400 mb-1">Awards +{ecoPoints} eco points to the student</p>
+
+                <div className="flex flex-wrap items-center justify-center gap-3 mt-1" onClick={(e) => e.stopPropagation()}>
+                  <button
+                    type="button"
+                    onClick={startScanner}
+                    className="flex items-center gap-2 px-4 py-2.5 bg-[#4a6741] text-white rounded-xl text-xs font-bold hover:bg-[#3a5333] transition shadow-sm"
+                  >
+                    <IoCameraOutline className="text-base" />
+                    Use Camera Scanner
+                  </button>
+
+                  <label className="flex items-center gap-2 px-4 py-2.5 bg-white border border-gray-200 text-gray-700 rounded-xl text-xs font-bold hover:bg-gray-50 transition cursor-pointer shadow-sm">
+                    <IoCloudUploadOutline className="text-base text-[#4a6741]" />
+                    Upload QR Image
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={handleFileUpload}
+                    />
+                  </label>
+                </div>
               </div>
             )}
             {loadingStudent && (
@@ -1376,19 +1625,64 @@ function ByocTab() {
         </div>
       </div>
 
-      {/* ── Search ── */}
-      <div className="flex items-center gap-2 bg-white border border-gray-200 rounded-xl px-4 py-2.5 mb-5 focus-within:border-[#4a6741] transition">
-        <IoSearchOutline className="text-gray-400 flex-shrink-0" />
-        <input
-          type="text" value={search} onChange={(e) => setSearch(e.target.value)}
-          placeholder="Search by student name or ID..."
-          className="text-sm text-gray-700 placeholder-gray-400 bg-transparent outline-none w-full"
-        />
+      {/* ── Search & Controls Card ── */}
+      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 mb-6 flex flex-col md:flex-row items-center justify-between gap-4">
+        {/* Search input field */}
+        <div className="relative flex-1 w-full">
+          <IoSearchOutline className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 text-base" />
+          <input
+            type="text"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search by student name or ID..."
+            className="w-full pl-10 pr-9 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm outline-none focus:border-[#4a6741] focus:bg-white transition"
+          />
+          {search && (
+            <button
+              onClick={() => setSearch("")}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition"
+              title="Clear search"
+            >
+              <IoCloseOutline className="text-lg" />
+            </button>
+          )}
+        </div>
+
+        {/* Action Controls */}
+        <div className="flex items-center gap-3 w-full md:w-auto justify-end flex-wrap">
+          <CustomFilterSelect
+            value={timeframeFilter}
+            onChange={setTimeframeFilter}
+            options={[
+              { value: "all", label: "All Time" },
+              { value: "today", label: "Today" },
+              { value: "week", label: "This Week" },
+              { value: "month", label: "This Month" },
+            ]}
+          />
+          <CustomFilterSelect
+            value={confirmedByFilter}
+            onChange={setConfirmedByFilter}
+            options={[
+              { value: "all", label: "All Roles" },
+              { value: "admin", label: "Admin" },
+              { value: "staff", label: "Staff" },
+            ]}
+          />
+
+          <button
+            onClick={fetchByoc}
+            className="p-2.5 bg-gray-50 border border-gray-200 rounded-xl text-gray-500 hover:text-[#4a6741] hover:border-[#4a6741]/40 transition ml-auto md:ml-0"
+            title="Refresh"
+          >
+            <IoRefreshOutline className={`text-base ${loading ? "animate-spin" : ""}`} />
+          </button>
+        </div>
       </div>
 
       {/* ── Table ── */}
       <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-        <div className="grid grid-cols-[1.5fr_1.2fr_1fr_1fr_1.2fr] items-center px-5 py-3 bg-[#e8f5e2] text-sm font-semibold text-[#4a6741]">
+        <div className="grid grid-cols-[1.5fr_1.2fr_1fr_1fr_1.2fr] items-center px-5 py-3 bg-gray-50 border-b border-gray-100 text-xs font-semibold text-gray-400 uppercase tracking-wide rounded-t-2xl">
           <span>Student</span>
           <span>School ID</span>
           <span>Eco Points</span>
@@ -1397,32 +1691,42 @@ function ByocTab() {
         </div>
         {/* Conditional rendering: Shows loading, empty state, or records. */}
         {loading ? (
-          <div className="flex justify-center py-12 text-gray-400 text-sm gap-2"><IoRefreshOutline className="animate-spin text-lg" /> Loading…</div>
-        ) : records.length === 0 ? (
-          <div className="flex flex-col items-center py-12 text-gray-400 gap-2">
-            <IoLeafOutline className="text-4xl" />
-            <p className="text-sm">{search ? "No records match." : "No BYOC records yet."}</p>
+          <div className="p-4">
+            <SkeletonTable rows={6} columns={5} showHeader={false} />
+          </div>
+        ) : filteredRecords.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-16 text-gray-400 gap-2">
+            <IoLeafOutline className="text-4xl text-gray-300" />
+            <p className="text-sm">{search || timeframeFilter !== "all" || confirmedByFilter !== "all" ? "No records match." : "No BYOC records yet."}</p>
           </div>
         ) : (
           <ul className="divide-y divide-gray-50">
             {/* Map over records to render table rows. */}
-            {records.map((r) => (
+            {filteredRecords.map((r) => (
               <li key={r._id} className="grid grid-cols-[1.5fr_1.2fr_1fr_1fr_1.2fr] items-center px-5 py-3.5 hover:bg-gray-50 transition">
-                <span className="text-sm font-medium text-gray-800">{r.studentName}</span>
-                <span className="text-sm text-gray-500 font-mono">{r.schoolId}</span>
-                <span className="flex items-center gap-1.5 text-sm font-bold text-[#4a6741]">
+                <span className="text-sm font-medium text-gray-800 truncate">{r.studentName}</span>
+                <span className="font-mono text-xs font-semibold text-[#4a6741]">{r.schoolId}</span>
+                <span className="flex items-center gap-1.5 text-xs font-bold text-[#4a6741]">
                   <IoLeafOutline className="text-[#4a6741]" />
                   +{r.ecoPoints} pts
                 </span>
                 <span>
-                  <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${roleBadge(r.confirmedByRole)}`}>
+                  <span className={`text-[10px] font-semibold px-2.5 py-0.5 rounded-full capitalize ${roleBadge(r.confirmedByRole)}`}>
                     {r.confirmedByRole}
                   </span>
                 </span>
-                <span className="text-sm text-gray-500">{fmt(r.createdAt)}</span>
+                <span className="text-xs text-gray-400 font-mono">{fmt(r.createdAt)}</span>
               </li>
             ))}
           </ul>
+        )}
+        {/* Footer */}
+        {!loading && filteredRecords.length > 0 && (
+          <div className="flex items-center justify-between px-5 py-3 border-t border-gray-100 bg-gray-50 rounded-b-2xl">
+            <p className="text-xs text-gray-400">
+              Showing <span className="font-semibold text-gray-700">{filteredRecords.length}</span> record{filteredRecords.length !== 1 ? "s" : ""}
+            </p>
+          </div>
         )}
       </div>
     </div>
@@ -1446,12 +1750,17 @@ export default function Rewards() {
   return (
     <AdminLayout breadcrumb="Rewards">
       {/* Header: Displays the page title and description. */}
-      <div className="flex items-start justify-between mb-2">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-[#4a6741]">Rewards Management</h1>
-          <p className="text-sm text-gray-500 mt-0.5">Manage rewards, redemptions, and BYOC eco-points</p>
+          <h1 className="text-2xl font-extrabold text-[#4a6741] flex items-center gap-2">
+            <IoGiftOutline className="text-3xl" />
+            Rewards Management
+          </h1>
+          <p className="text-xs text-gray-500 mt-1">
+            Configure reward items, set point rates, and scan QR codes to process redemptions
+          </p>
         </div>
-        <button className="p-2 text-gray-400 hover:text-[#4a6741] transition" title="Settings">
+        <button className="p-2 text-gray-400 hover:text-[#4a6741] transition self-start sm:self-auto" title="Settings">
           <IoSettingsOutline className="text-xl" />
         </button>
       </div>

@@ -121,8 +121,17 @@ exports.createStudent = async (req, res) => {
 // GET /api/students  (admin/staff only)
 exports.getStudents = async (req, res) => {
   try {
-    const { search, page = 1, limit = 20 } = req.query;
+    const { search, page = 1, limit = 20, userType, isActive, isDeleted, gradeLevel, department } = req.query;
     const query = {};
+
+    if (isDeleted === "true") {
+      query.isDeleted = true;
+    } else if (isDeleted === "all") {
+      // Return all regardless of isDeleted
+    } else {
+      // Default: exclude soft-deleted users
+      query.isDeleted = { $ne: true };
+    }
 
     if (search) {
       query.$or = [
@@ -130,6 +139,22 @@ exports.getStudents = async (req, res) => {
         { schoolId: { $regex: search, $options: "i" } },
         { email: { $regex: search, $options: "i" } },
       ];
+    }
+
+    if (userType) {
+      query.userType = userType;
+    }
+
+    if (isActive !== undefined && isActive !== "") {
+      query.isActive = isActive === "true";
+    }
+
+    if (gradeLevel) {
+      query.gradeLevel = gradeLevel;
+    }
+
+    if (department) {
+      query.department = department;
     }
 
     const total = await Student.countDocuments(query);
@@ -216,23 +241,77 @@ exports.updateStudent = async (req, res) => {
   }
 };
 
-// DELETE /api/students/:id  (admin only)
+// DELETE /api/students/:id  (admin only - Soft Delete)
 exports.deleteStudent = async (req, res) => {
   try {
-    const student = await Student.findByIdAndDelete(req.params.id);
-    if (!student) return res.status(404).json({ message: "Student not found" });
+    const student = await Student.findById(req.params.id);
+    if (!student) return res.status(404).json({ message: "User not found" });
+
+    student.isDeleted = true;
+    student.deletedAt = new Date();
+    student.isActive = false;
+    await student.save({ validateBeforeSave: false });
 
     logAudit({
-      action: "Student Deleted",
+      action: "Student Soft Deleted",
       actorType: req.user.role,
       actorId: req.user._id,
       actorName: req.user.fullName,
-      description: `${req.user.fullName} deleted user "${student.fullName}" (${student.schoolId})`,
+      description: `${req.user.fullName} soft-deleted user "${student.fullName}" (${student.schoolId})`,
       category: "student",
       meta: { studentId: student._id, schoolId: student.schoolId },
     });
 
-    res.json({ message: "User deleted successfully" });
+    res.json({ message: "User account soft-deleted successfully", student });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// PUT /api/students/:id/restore  (admin only - Restore Soft-Deleted Account)
+exports.restoreStudent = async (req, res) => {
+  try {
+    const student = await Student.findById(req.params.id);
+    if (!student) return res.status(404).json({ message: "User not found" });
+
+    student.isDeleted = false;
+    student.deletedAt = null;
+    student.isActive = true;
+    await student.save({ validateBeforeSave: false });
+
+    logAudit({
+      action: "Student Restored",
+      actorType: req.user.role,
+      actorId: req.user._id,
+      actorName: req.user.fullName,
+      description: `${req.user.fullName} restored user "${student.fullName}" (${student.schoolId})`,
+      category: "student",
+      meta: { studentId: student._id, schoolId: student.schoolId },
+    });
+
+    res.json({ message: "User account restored successfully", student });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// DELETE /api/students/:id/permanent  (admin only - Permanent Hard Delete)
+exports.permanentDeleteStudent = async (req, res) => {
+  try {
+    const student = await Student.findByIdAndDelete(req.params.id);
+    if (!student) return res.status(404).json({ message: "User not found" });
+
+    logAudit({
+      action: "Student Permanently Deleted",
+      actorType: req.user.role,
+      actorId: req.user._id,
+      actorName: req.user.fullName,
+      description: `${req.user.fullName} permanently deleted user "${student.fullName}" (${student.schoolId})`,
+      category: "student",
+      meta: { studentId: student._id, schoolId: student.schoolId },
+    });
+
+    res.json({ message: "User permanently deleted from database" });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }

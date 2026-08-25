@@ -109,7 +109,7 @@ export default function StudentVerifyResetCode() {
         )}
 
         <form onSubmit={handleSubmit} className="space-y-6">
-          <div className="flex justify-between gap-2" onPaste={handlePaste}>
+          <div className="grid grid-cols-6 gap-1.5 sm:gap-2.5 max-w-full" onPaste={handlePaste}>
             {digits.map((d, i) => (
               <input
                 key={i}
@@ -120,7 +120,7 @@ export default function StudentVerifyResetCode() {
                 value={d}
                 onChange={(e) => handleChange(i, e.target.value)}
                 onKeyDown={(e) => handleKeyDown(i, e)}
-                className="w-12 h-14 text-center text-xl font-bold border-2 border-gray-200 rounded-xl focus:outline-none focus:border-[#4a6741] focus:ring-2 focus:ring-[#4a6741]/20 transition"
+                className="w-full h-12 sm:h-14 text-center text-lg sm:text-xl font-bold border-2 border-gray-200 rounded-xl focus:outline-none focus:border-[#4a6741] focus:ring-2 focus:ring-[#4a6741]/20 transition"
               />
             ))}
           </div>
