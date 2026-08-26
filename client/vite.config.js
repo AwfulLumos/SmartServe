@@ -18,6 +18,18 @@ export default defineConfig({
         target: "http://localhost:5001",
         changeOrigin: true,
         ws: true,
+        configure: (proxy) => {
+          proxy.on("error", (err) => {
+            if (
+              err.code === "ECONNRESET" ||
+              err.code === "ECONNABORTED" ||
+              err.code === "ECONNREFUSED"
+            ) {
+              // Suppress harmless websocket reset logs on server restart
+              return;
+            }
+          });
+        },
       },
     },
   },
