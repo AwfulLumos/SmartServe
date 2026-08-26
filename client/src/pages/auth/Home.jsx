@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { IoRocketOutline, IoLogoGithub, IoCheckmarkCircle, IoAlertCircle } from "react-icons/io5";
-import api from "../utils/api";
+import api from "../../utils/api";
 
 function Home() {
   const [status, setStatus] = useState(null);

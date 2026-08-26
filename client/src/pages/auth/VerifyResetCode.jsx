@@ -1,7 +1,7 @@
 import { useState, useRef } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { IoKeyOutline, IoArrowBack } from "react-icons/io5";
-import api from "../utils/api";
+import api from "../../utils/api";
 
 export default function VerifyResetCode() {
   const navigate = useNavigate();
@@ -86,7 +86,7 @@ export default function VerifyResetCode() {
       <div className="absolute inset-0 bg-[#4a6741]/60" />
 
       {/* Card */}
-      <div className="relative z-10 bg-white rounded-2xl shadow-2xl p-8 w-full max-w-md">
+      <div className="relative z-10 bg-[#ffffff] rounded-2xl shadow-2xl p-8 w-full max-w-md">
         {/* Back */}
         <Link
           to="/forgot-password"
@@ -131,7 +131,7 @@ export default function VerifyResetCode() {
                 value={d}
                 onChange={(e) => handleChange(i, e.target.value)}
                 onKeyDown={(e) => handleKeyDown(i, e)}
-                className="w-full h-12 sm:h-14 text-center text-lg sm:text-xl font-bold border-2 border-gray-200 rounded-xl focus:outline-none focus:border-[#4a6741] focus:ring-2 focus:ring-[#4a6741]/20 transition"
+                className="w-full h-12 sm:h-14 text-center text-lg sm:text-xl font-bold border-2 border-gray-200 rounded-xl focus:outline-none focus:border-[#4a6741] focus:ring-2 focus:ring-[#4a6741]/20 transition text-gray-800"
               />
             ))}
           </div>

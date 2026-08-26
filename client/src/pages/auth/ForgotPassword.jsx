@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { IoMail, IoArrowBack } from "react-icons/io5";
-import api from "../utils/api";
+import api from "../../utils/api";
 
 export default function ForgotPassword() {
   const navigate = useNavigate();

@@ -26,6 +26,13 @@ function resolveStudentImageUrl(profileImage) {
 export default function ProfileView({ student, onClose, onLogout }) {
   const { refreshStudent } = useStudentAuth();
   const [activeTab, setActiveTab] = useState("menu");
+  const containerRef = React.useRef(null);
+
+  React.useEffect(() => {
+    if (containerRef.current) {
+      containerRef.current.scrollTop = 0;
+    }
+  }, [activeTab]);
 
   const [savingProfile, setSavingProfile] = useState(false);
   const [uploadingImage, setUploadingImage] = useState(false);
@@ -144,7 +151,7 @@ export default function ProfileView({ student, onClose, onLogout }) {
   const profileImageUrl = resolveStudentImageUrl(student?.profileImage);
 
   return (
-    <div className="flex-1 overflow-y-auto pb-20 bg-gray-50 dark:bg-[#0f170a] font-sans">
+    <div ref={containerRef} className="flex-1 overflow-y-auto pb-20 bg-gray-50 dark:bg-[#0f170a] font-sans">
       {activeTab === "menu" ? (
         <ProfileMenuList
           student={student}

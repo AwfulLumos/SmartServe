@@ -9,8 +9,8 @@ import {
   IoEyeOutline,
   IoEyeOffOutline,
 } from "react-icons/io5";
-import logo from "../assets/logo/logo.png";
-import { useAuth } from "../context/AuthContext";
+import logo from "../../assets/logo/logo.png";
+import { useAuth } from "../../context/AuthContext";
 
 const features = [
   {
