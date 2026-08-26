@@ -9,6 +9,7 @@ const menuItemSchema = new mongoose.Schema(
       enum: ["Morning", "Lunch", "Snacks", "Beverages", "Others"],
     },
     price: { type: Number, required: true, min: 0 },
+    image: { type: String, default: "" },
     isActive: { type: Boolean, default: true },
   },
   { timestamps: true }

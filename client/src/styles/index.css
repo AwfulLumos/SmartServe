@@ -2,9 +2,180 @@
 @tailwind components;
 @tailwind utilities;
 
-html, body, #root {
+html,
+body,
+#root {
   margin: 0;
   padding: 0;
   width: 100%;
   height: 100%;
+}
+
+/* Custom Styled Select Dropdown Chevron Arrows */
+select {
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke-width='2.5' stroke='%234a6741'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' d='M19.5 8.25l-7.5 7.5-7.5-7.5' /%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.75rem center;
+  background-size: 1rem 1rem;
+  padding-right: 2.5rem !important;
+  cursor: pointer;
+}
+
+.dark select {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke-width='2.5' stroke='%238ebd7e'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' d='M19.5 8.25l-7.5 7.5-7.5-7.5' /%3E%3C/svg%3E");
+}
+
+select.no-custom-arrow {
+  background-image: none !important;
+}
+
+
+/* Dark Mode Override System */
+.dark body,
+.dark #root {
+  background-color: #0f170a !important;
+  /* Elegant dark forest green-black */
+  color: #f3f4f6 !important;
+}
+
+.dark .bg-white {
+  background-color: #1a2416 !important;
+  /* Dark green-card background */
+}
+
+.dark .bg-gray-50 {
+  background-color: #0f170a !important;
+}
+
+.dark .bg-gray-100,
+.dark [class*="bg-gray-100"] {
+  background-color: #24301f !important;
+}
+
+.dark .text-gray-900,
+.dark .text-gray-800,
+.dark .text-gray-700,
+.dark .text-gray-600 {
+  color: #e5e7eb !important;
+}
+
+.dark .text-gray-500,
+.dark .text-gray-400 {
+  color: #9ca3af !important;
+}
+
+.dark .border-gray-100,
+.dark .border-gray-200 {
+  border-color: #2b3924 !important;
+}
+
+.dark input:not(.bg-transparent),
+.dark select,
+.dark textarea {
+  background-color: #24301f !important;
+  color: #ffffff !important;
+  border-color: #2b3924 !important;
+}
+
+.dark input.bg-transparent {
+  background-color: transparent !important;
+  color: #ffffff !important;
+}
+
+.dark input:disabled,
+.dark select:disabled {
+  background-color: #1a2416 !important;
+  color: #9ca3af !important;
+}
+
+.dark .shadow-sm,
+.dark .shadow-xl {
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3), 0 2px 4px -1px rgba(0, 0, 0, 0.2) !important;
+}
+
+/* Ensure green color overrides still look premium */
+.dark .text-\[\#4a6741\] {
+  color: #8ebd7e !important;
+}
+
+.dark .border-\[\#4a6741\] {
+  border-color: #8ebd7e !important;
+}
+
+.dark .bg-\[\#4a6741\] {
+  background-color: #4a6741 !important;
+}
+
+/* Smooth Admin Page Transition Fade-in */
+@keyframes adminPageFadeIn {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+.animate-admin-page-fade-in {
+  animation: adminPageFadeIn 0.3s ease-out;
+}
+
+@keyframes studentPageFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-student-page-fade-in {
+  animation: studentPageFadeIn 0.3s ease-out;
+}
+
+/* Hide scrollbar utility for clean UI on touch/scroll containers */
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  /* IE and Edge */
+  scrollbar-width: none;
+  /* Firefox */
+}
+
+/* Custom Select Dropdown Global Styling */
+select {
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%234a6741'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2.5' d='M19 9l-7 7-7-7'%3E%3C/path%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.75rem center;
+  background-size: 0.9em 0.9em;
+  padding-right: 2.2rem !important;
+  cursor: pointer;
+}
+
+select option {
+  background-color: #ffffff;
+  color: #1f2937;
+  padding: 10px 14px;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+select option:hover,
+select option:focus,
+select option:checked {
+  background-color: #e8f5e2 !important;
+  color: #4a6741 !important;
 }

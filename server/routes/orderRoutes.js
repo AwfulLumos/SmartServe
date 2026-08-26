@@ -2,10 +2,11 @@ const express = require("express");
 const router = express.Router();
 const { protect, restrictTo } = require("../middleware/auth");
 const { protectStudent } = require("../middleware/studentAuth");
-const { createOrder, getStudentOrders, getOrders, updateOrderStatus } = require("../controllers/orderController");
+const { createOrder, getStudentOrders, getOrders, updateOrderStatus, bulkUpdateOrderStatus } = require("../controllers/orderController");
 
 // Admin / staff routes
 router.get("/", protect, restrictTo("admin", "staff"), getOrders);
+router.patch("/bulk-status", protect, restrictTo("admin", "staff"), bulkUpdateOrderStatus);
 router.patch("/:id/status", protect, restrictTo("admin", "staff"), updateOrderStatus);
 
 // Student routes

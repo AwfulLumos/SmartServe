@@ -3,102 +3,158 @@ import api from "../utils/api";
 
 // ──────────────────────────────────────────────────────
 // AUTHENTICATION CONTEXT
-// Ginagamit para i-share ang login state sa buong app
-// Lahat ng components na need ng user info ay pwede mag-access dito
+// Shares the login/authentication state application-wide
+// Allows components to easily access current user data
 // ──────────────────────────────────────────────────────
 
 const AuthContext = createContext(null);
 
 // ──────────────────────────────────────────────────────
 // AUTH PROVIDER COMPONENT
-// Ito ang nagbibigay ng authentication data sa lahat ng child components
-// Dito ginagawa ang login, register, logout functions
+// Exposes authentication data and utility actions to child components
+// Implements core login, registration, and logout flows
 // ──────────────────────────────────────────────────────
 export function AuthProvider({ children }) {
   // ──────────────────────────────────────────────────────
-  // USER STATE - nagse-save ng current logged-in user
-  // Kapag nag-refresh ang page, babalik pa rin ang user data
+  // USER STATE - Tracks the active logged-in user session
+  // Retains user profile across hard browser reloads
   // ──────────────────────────────────────────────────────
   const [user, setUser] = useState(() => {
     try {
-      // Kunin ang saved user data from localStorage
+      // Retrieve the saved user data from localStorage cache
       const stored = localStorage.getItem("smartserve_user");
-      // Kapag may saved data, i-convert to object, else null
+      // Parse the JSON data if cached, otherwise fall back to null
       return stored ? JSON.parse(stored) : null;
     } catch {
-      // Kapag may error sa localStorage, return null
+      // Fall back to null if access to localStorage fails
       return null;
     }
   });
 
   // ──────────────────────────────────────────────────────
-  // LOADING STATE - para sa loading spinner habang naglo-login/register
+  // LOADING STATE - Tracks auth actions in progress (e.g. login/register)
   // ──────────────────────────────────────────────────────
   const [loading, setLoading] = useState(false);
 
+  const persistUser = (nextUser) => {
+    setUser(nextUser);
+    if (nextUser) {
+      localStorage.setItem("smartserve_user", JSON.stringify(nextUser));
+      if (nextUser.token) {
+        api.defaults.headers.common["Authorization"] = `Bearer ${nextUser.token}`;
+      }
+    } else {
+      localStorage.removeItem("smartserve_user");
+      delete api.defaults.headers.common["Authorization"];
+    }
+  };
+
   // ──────────────────────────────────────────────────────
-  // AUTO-SETUP NG AUTHORIZATION HEADER
-  // Kapag may user na, automatic na lagyan ng Bearer token ang lahat ng API calls
+  // AUTOMATIC HEADER INTERCEPTOR SETUP
+  // When a user token is present, automatically append a Bearer Authorization header to all API requests
   // ──────────────────────────────────────────────────────
   useEffect(() => {
     if (user?.token) {
-      // May token? Lagyan ng Authorization header ang lahat ng API requests
+      // Append JWT token authorization header
       api.defaults.headers.common["Authorization"] = `Bearer ${user.token}`;
     } else {
-      // Walang token? Tanggalin ang Authorization header
+      // Clear authorization headers when session is destroyed
       delete api.defaults.headers.common["Authorization"];
     }
   }, [user]);
 
   // ──────────────────────────────────────────────────────
-  // LOGIN FUNCTION - para mag-sign in ang user
+  // LOGIN FUNCTION - Authenticates user credentials
   // ──────────────────────────────────────────────────────
   const login = async (username, password) => {
-    setLoading(true); // Ipakita na loading
+    setLoading(true); // Toggle active load indicator
     try {
-      // I-send ang username at password sa server
+      // Post user credentials to backend
       const { data } = await api.post("/auth/login", { username, password });
-      // I-save ang user data sa state
-      setUser(data);
-      // I-save sa localStorage para di mawala pag refresh
-      localStorage.setItem("smartserve_user", JSON.stringify(data));
-      // I-set ang authorization header para sa future API calls
-      api.defaults.headers.common["Authorization"] = `Bearer ${data.token}`;
-      return { success: true }; // Success!
+      // Persist authenticated user session
+      persistUser(data);
+      sessionStorage.setItem("smartserve_admin_just_logged_in", "true");
+      return { success: true }; // Authentication successful
     } catch (err) {
-      // May error? Return the error message
+      // Return server response errors
       return { success: false, message: err.response?.data?.message || "Login failed" };
     } finally {
-      setLoading(false); // Itigil ang loading
+      setLoading(false); // Stop load indicator
     }
   };
 
   // ──────────────────────────────────────────────────────
-  // REGISTER FUNCTION - para mag-sign up ang user
-  // Hindi automatic na maglo-login, kailangan pa approve ng admin
+  // REGISTER FUNCTION - Submit registration requests
+  // Registration requests require administrative approval before authentication is allowed
   // ──────────────────────────────────────────────────────
   const register = async (formData) => {
-    setLoading(true); // Ipakita na loading
+    setLoading(true); // Toggle load state
     try {
-      // I-send ang registration form sa server
+      // Submit registration data payload
       const { data } = await api.post("/auth/register", formData);
-      // HINDI mag-sign in automatically - kailangan approve muna ng admin
+      // Inform client that user requires approval to log in
       return { success: true, message: data.message, isApproved: data.isApproved };
     } catch (err) {
-      // May error? Return the error message
+      // Return server-side validation error messages
       return { success: false, message: err.response?.data?.message || "Registration failed" };
     } finally {
-      setLoading(false); // Itigil ang loading
+      setLoading(false); // Stop loading indicator
     }
   };
 
   // ──────────────────────────────────────────────────────
-  // LOGOUT FUNCTION - para mag-sign out ang user
+  // LOGOUT FUNCTION - Terminates the active user session
   // ──────────────────────────────────────────────────────
   const logout = () => {
-    setUser(null); // Tanggalin ang user data
-    localStorage.removeItem("smartserve_user"); // Tanggalin sa localStorage
-    delete api.defaults.headers.common["Authorization"]; // Tanggalin ang auth header
+    persistUser(null);
+  };
+
+  const refreshMe = async () => {
+    try {
+      const { data } = await api.get("/auth/me");
+      const currentToken = user?.token;
+      const merged = { ...data, token: currentToken };
+      persistUser(merged);
+      return { success: true, data: merged };
+    } catch (err) {
+      return { success: false, message: err.response?.data?.message || "Failed to refresh profile" };
+    }
+  };
+
+  const updateProfile = async (payload) => {
+    try {
+      const { data } = await api.patch("/auth/me/profile", payload);
+      const merged = { ...data, token: user?.token };
+      persistUser(merged);
+      return { success: true, data: merged };
+    } catch (err) {
+      return { success: false, message: err.response?.data?.message || "Failed to update profile" };
+    }
+  };
+
+  const uploadProfileImage = async (file) => {
+    try {
+      const formData = new FormData();
+      formData.append("profileImage", file);
+      const { data } = await api.post("/auth/me/profile-image", formData, {
+        headers: { "Content-Type": "multipart/form-data" },
+      });
+      const merged = { ...data, token: user?.token };
+      persistUser(merged);
+      return { success: true, data: merged };
+    } catch (err) {
+      return { success: false, message: err.response?.data?.message || "Failed to upload image" };
+    }
+  };
+
+  const deleteMyAccount = async () => {
+    try {
+      const { data } = await api.delete("/auth/me/profile");
+      logout();
+      return { success: true, message: data.message };
+    } catch (err) {
+      return { success: false, message: err.response?.data?.message || "Failed to delete account" };
+    }
   };
 
   // ──────────────────────────────────────────────────────
@@ -131,18 +187,32 @@ export function AuthProvider({ children }) {
   };
 
   // ──────────────────────────────────────────────────────
-  // PROVIDER RETURN - ibibigay ang auth data sa lahat ng child components
+  // PROVIDER RETURN - Exposes auth data context to child components
   // ──────────────────────────────────────────────────────
   return (
-    <AuthContext.Provider value={{ user, loading, login, register, logout, changePassword, resetStaffPassword }}>
+    <AuthContext.Provider
+      value={{
+        user,
+        loading,
+        login,
+        register,
+        logout,
+        refreshMe,
+        updateProfile,
+        uploadProfileImage,
+        deleteMyAccount,
+        changePassword,
+        resetStaffPassword,
+      }}
+    >
       {children}
     </AuthContext.Provider>
   );
 }
 
 // ──────────────────────────────────────────────────────
-// USE AUTH HOOK - para madaling mag-access ng auth data sa components
-// Gagamitin sa loob ng AuthProvider lang
+// USE AUTH HOOK - Easy custom hook access to the auth context
+// Can only be used inside components wrapped in an AuthProvider
 // ──────────────────────────────────────────────────────
 export function useAuth() {
   const ctx = useContext(AuthContext);

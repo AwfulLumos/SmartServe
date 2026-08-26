@@ -1,4 +1,6 @@
 const crypto = require("crypto");
+const fs = require("fs");
+const path = require("path");
 const jwt = require("jsonwebtoken");
 const Student = require("../models/Student");
 const { sendResetCode } = require("../config/mailer");
@@ -6,6 +8,39 @@ const logAudit = require("../utils/auditLogger");
 
 const generateToken = (id) =>
   jwt.sign({ id, type: "student" }, process.env.JWT_SECRET, { expiresIn: "7d" });
+
+const normalizeEmail = (email) => (email || "").toLowerCase().trim();
+
+const toStudentAuthPayload = (student, token) => {
+  const payload = {
+    _id: student._id,
+    schoolId: student.schoolId,
+    fullName: student.fullName,
+    email: student.email,
+    userType: student.userType ?? "student",
+    gradeLevel: student.gradeLevel,
+    section: student.section,
+    jobTitle: student.jobTitle,
+    department: student.department,
+    points: student.points,
+    byocCount: student.byocCount,
+    profileImage: student.profileImage || "",
+    qrToken: student.qrToken,
+    createdAt: student.createdAt,
+  };
+
+  if (token) payload.token = token;
+  return payload;
+};
+
+const removeLocalUpload = (fileUrl) => {
+  if (!fileUrl || typeof fileUrl !== "string" || !fileUrl.startsWith("/uploads/profiles/")) return;
+  const filename = path.basename(fileUrl);
+  const diskPath = path.join(__dirname, "..", "uploads", "profiles", filename);
+  if (fs.existsSync(diskPath)) {
+    fs.unlinkSync(diskPath);
+  }
+};
 
 // POST /api/student/auth/login
 exports.login = async (req, res) => {
@@ -21,6 +56,10 @@ exports.login = async (req, res) => {
       return res.status(401).json({ message: "Invalid School ID or password" });
     }
 
+    if (student.isDeleted) {
+      return res.status(403).json({ message: "Your account has been deleted. Please contact your administrator." });
+    }
+
     if (!student.isActive) {
       return res.status(403).json({ message: "Your account has been deactivated. Please contact your school administrator." });
     }
@@ -34,21 +73,7 @@ exports.login = async (req, res) => {
       category: "auth",
     });
 
-    res.json({
-      _id: student._id,
-      schoolId: student.schoolId,
-      fullName: student.fullName,
-      email: student.email,
-      userType: student.userType ?? "student",
-      gradeLevel: student.gradeLevel,
-      section: student.section,
-      jobTitle: student.jobTitle,
-      department: student.department,
-      points: student.points,
-      byocCount: student.byocCount,
-      qrToken: student.qrToken,
-      token: generateToken(student._id),
-    });
+    res.json(toStudentAuthPayload(student, generateToken(student._id)));
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -56,7 +81,96 @@ exports.login = async (req, res) => {
 
 // GET /api/student/auth/me  (protected)
 exports.getMe = async (req, res) => {
-  res.json(req.student);
+  res.json(toStudentAuthPayload(req.student));
+};
+
+// PATCH /api/student/auth/me  (protected)
+// Logged-in student can only update their own editable profile fields.
+exports.updateMe = async (req, res) => {
+  try {
+    const student = req.student;
+    const { fullName, email, gradeLevel, section, jobTitle, department } = req.body;
+
+    if (fullName !== undefined) {
+      const nextName = String(fullName).trim();
+      if (nextName.length < 2) {
+        return res.status(400).json({ message: "Full name must be at least 2 characters" });
+      }
+      student.fullName = nextName;
+    }
+
+    if (email !== undefined) {
+      const nextEmail = normalizeEmail(email);
+      if (!nextEmail) {
+        return res.status(400).json({ message: "Email is required" });
+      }
+
+      const duplicate = await Student.findOne({
+        email: nextEmail,
+        _id: { $ne: student._id },
+      }).select("_id");
+
+      if (duplicate) {
+        return res.status(409).json({ message: "Email is already in use" });
+      }
+      student.email = nextEmail;
+    }
+
+    if ((student.userType ?? "student") === "employee") {
+      if (jobTitle !== undefined) student.jobTitle = String(jobTitle || "").trim();
+      if (department !== undefined) student.department = String(department || "").trim();
+    } else {
+      if (gradeLevel !== undefined) student.gradeLevel = String(gradeLevel || "").trim();
+      if (section !== undefined) student.section = String(section || "").trim();
+    }
+
+    await student.save();
+
+    logAudit({
+      action: "Student Profile Updated",
+      actorType: "student",
+      actorId: student._id,
+      actorName: student.fullName,
+      description: `${student.fullName} (${student.schoolId}) updated their account information`,
+      category: "student",
+      meta: { studentId: student._id },
+    });
+
+    res.json(toStudentAuthPayload(student));
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// PATCH /api/student/auth/me/photo  (protected)
+// Logged-in student uploads/changes only their own profile photo.
+exports.updateMyPhoto = async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ message: "Please upload an image file" });
+    }
+
+    const student = req.student;
+    const oldImage = student.profileImage;
+    student.profileImage = `/uploads/profiles/${req.file.filename}`;
+    await student.save();
+
+    removeLocalUpload(oldImage);
+
+    logAudit({
+      action: "Student Profile Photo Updated",
+      actorType: "student",
+      actorId: student._id,
+      actorName: student.fullName,
+      description: `${student.fullName} (${student.schoolId}) updated their profile photo`,
+      category: "student",
+      meta: { studentId: student._id },
+    });
+
+    res.json(toStudentAuthPayload(student));
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
 };
 
 // POST /api/student/auth/forgot-password

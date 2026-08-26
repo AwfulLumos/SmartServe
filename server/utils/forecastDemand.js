@@ -287,11 +287,20 @@ function buildRestockForecast({ inventory = [], orders = [], options = {} }) {
     const safetyStock = Math.max(Number(item.minThreshold) || 0, Math.ceil(dailyDemand * safetyStockDays));
     const recommendedReorderQty = Math.max(0, Math.ceil(forecastNextDaysDemand + safetyStock - currentStock));
 
+    const price = Number(item.price) || 0;
+    const unitCost = Number(item.unitCost) > 0 ? Number(item.unitCost) : Number((price * 0.55).toFixed(2));
+    const grossProfitPerUnit = Number(Math.max(0, price - unitCost).toFixed(2));
+    const profitMarginPct = price > 0 ? Number(((grossProfitPerUnit / price) * 100).toFixed(1)) : 0;
+
     return {
       _id: item._id,
       name: item.name,
       category: item.category,
       unit: item.unit,
+      price,
+      unitCost,
+      grossProfitPerUnit,
+      profitMarginPct,
       currentStock,
       minThreshold: Number(item.minThreshold) || 0,
       forecastDailyDemand: Number(dailyDemand.toFixed(2)),
@@ -346,6 +355,52 @@ function buildIncomeForecast({ orders = [], options = {} }) {
   const changeAmount = nextForecastTotal - previousActual;
   const changePct = previousActual > 0 ? (changeAmount / previousActual) * 100 : null;
 
+  // Calculate top selling dishes and category breakdown
+  const dishMap = new Map();
+  const categoryMap = new Map();
+  let totalItemRevenue = 0;
+
+  orders
+    .filter((order) => order.status !== "cancelled")
+    .forEach((order) => {
+      (order.items || []).forEach((item) => {
+        const name = String(item.name || "Unknown").trim();
+        const category = String(item.category || "General").trim();
+        const qty = Number(item.quantity) || 0;
+        const price = Number(item.price) || 0;
+        const revenue = qty * price || 0;
+
+        totalItemRevenue += revenue;
+
+        const existingDish = dishMap.get(name) || { name, category, totalQty: 0, totalRevenue: 0 };
+        existingDish.totalQty += qty;
+        existingDish.totalRevenue += revenue;
+        dishMap.set(name, existingDish);
+
+        const existingCat = categoryMap.get(category) || { category, revenue: 0 };
+        existingCat.revenue += revenue;
+        categoryMap.set(category, existingCat);
+      });
+    });
+
+  const topDishes = Array.from(dishMap.values())
+    .map((d) => ({
+      name: d.name,
+      category: d.category,
+      totalQty: d.totalQty,
+      totalRevenue: Number(d.totalRevenue.toFixed(2)),
+    }))
+    .sort((a, b) => b.totalRevenue - a.totalRevenue)
+    .slice(0, 5);
+
+  const categoryBreakdown = Array.from(categoryMap.values())
+    .map((c) => ({
+      category: c.category,
+      revenue: Number(c.revenue.toFixed(2)),
+      percentage: totalItemRevenue > 0 ? Number(((c.revenue / totalItemRevenue) * 100).toFixed(1)) : 0,
+    }))
+    .sort((a, b) => b.revenue - a.revenue);
+
   return {
     granularity,
     method,
@@ -354,6 +409,8 @@ function buildIncomeForecast({ orders = [], options = {} }) {
       value: Number(entry.value.toFixed(2)),
     })),
     forecastSeries: forecastPoints,
+    topDishes,
+    categoryBreakdown,
     summary: {
       nextPeriodForecast: Number((forecast[0] || 0).toFixed(2)),
       forecastWindowTotal: Number(nextForecastTotal.toFixed(2)),

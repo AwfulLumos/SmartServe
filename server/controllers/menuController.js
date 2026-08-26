@@ -24,11 +24,11 @@ exports.getMenuItems = async (req, res) => {
 // POST /api/menu
 exports.createMenuItem = async (req, res) => {
   try {
-    const { name, category, price } = req.body;
+    const { name, category, price, image } = req.body;
     if (!name || !category || price === undefined) {
       return res.status(400).json({ message: "Name, category and price are required" });
     }
-    const item = await MenuItem.create({ name, category, price });
+    const item = await MenuItem.create({ name, category, price, image: image || "" });
 
     logAudit({
       action: "Menu Item Added",
@@ -49,10 +49,13 @@ exports.createMenuItem = async (req, res) => {
 // PUT /api/menu/:id
 exports.updateMenuItem = async (req, res) => {
   try {
-    const { name, category, price } = req.body;
+    const { name, category, price, image } = req.body;
+    const updateData = { name, category, price };
+    if (image !== undefined) updateData.image = image;
+
     const item = await MenuItem.findByIdAndUpdate(
       req.params.id,
-      { name, category, price },
+      updateData,
       { new: true, runValidators: true }
     );
     if (!item) return res.status(404).json({ message: "Menu item not found" });

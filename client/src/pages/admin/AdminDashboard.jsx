@@ -26,6 +26,7 @@ import {
 } from "react-icons/io5";
 import { useAuth } from "../../context/AuthContext";
 import api from "../../utils/api";
+import { SkeletonStats, SkeletonTable } from "../../components/SkeletonLoader";
 
 const fmt = (date) => {
   if (!date) return "—";
@@ -36,9 +37,9 @@ const peso = (n) =>
   "₱" + Number(n ?? 0).toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 const STATUS_STYLES = {
-  pending:   { label: "Pending",   cls: "bg-yellow-100 text-yellow-700" },
+  pending: { label: "Pending", cls: "bg-yellow-100 text-yellow-700" },
   preparing: { label: "Preparing", cls: "bg-blue-100 text-blue-700" },
-  ready:     { label: "Ready",     cls: "bg-purple-100 text-purple-700" },
+  ready: { label: "Ready", cls: "bg-purple-100 text-purple-700" },
   completed: { label: "Completed", cls: "bg-green-100 text-green-700" },
   cancelled: { label: "Cancelled", cls: "bg-red-100 text-red-500" },
 };
@@ -137,11 +138,11 @@ export default function AdminDashboard() {
   ];
 
   const quickActions = [
-    { label: "Register Student", desc: "Add a new student account",   icon: <IoPersonAddOutline className="text-[#4a6741] text-2xl" />, to: "/dashboard/register-student" },
-    { label: "Student Lookup",   desc: "Search student records",       icon: <IoSearchOutline className="text-[#4a6741] text-2xl" />,    to: "/dashboard/student-lookup", wip: true },
-    { label: "Add Inventory",    desc: "Update stock levels",          icon: <IoCubeOutline className="text-[#4a6741] text-2xl" />,      to: "/dashboard/inventory" },
-    { label: "Manage Rewards",   desc: "Update reward tiers",          icon: <IoGiftOutline className="text-[#4a6741] text-2xl" />,      to: "/dashboard/rewards" },
-    { label: "View Analytics",   desc: "Sales and trend reports",      icon: <IoBarChartOutline className="text-[#4a6741] text-2xl" />,  to: "/dashboard/analytics" },
+    { label: "Register Student", desc: "Add a new student account", icon: <IoPersonAddOutline className="text-[#4a6741] text-2xl" />, to: "/dashboard/register-student" },
+    { label: "Student Lookup", desc: "Search student records", icon: <IoSearchOutline className="text-[#4a6741] text-2xl" />, to: "/dashboard/student-lookup", wip: true },
+    { label: "Add Inventory", desc: "Update stock levels", icon: <IoCubeOutline className="text-[#4a6741] text-2xl" />, to: "/dashboard/inventory" },
+    { label: "Manage Rewards", desc: "Update reward tiers", icon: <IoGiftOutline className="text-[#4a6741] text-2xl" />, to: "/dashboard/rewards" },
+    { label: "View Analytics", desc: "Sales and trend reports", icon: <IoBarChartOutline className="text-[#4a6741] text-2xl" />, to: "/dashboard/analytics" },
   ];
 
   return (
@@ -260,39 +261,42 @@ export default function AdminDashboard() {
             </div>
 
             {loading ? (
-              <div className="flex justify-center py-10">
-                <div className="w-7 h-7 border-4 border-[#4a6741] border-t-transparent rounded-full animate-spin" />
+              <div className="p-4">
+                <SkeletonTable rows={5} columns={6} showHeader={false} />
               </div>
             ) : !data?.recentOrders?.length ? (
-              <div className="text-center py-10 text-gray-400 text-sm">No orders yet today.</div>
+              <div className="flex flex-col items-center justify-center py-16 text-gray-400 gap-2">
+                <IoBagOutline className="text-4xl text-gray-300" />
+                <p className="text-sm">No orders yet today.</p>
+              </div>
             ) : (
               <table className="w-full text-sm">
                 <thead>
                   <tr className="bg-gray-50 border-b border-gray-100 text-left">
-                    <th className="px-5 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Order</th>
-                    <th className="px-5 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Student</th>
-                    <th className="px-5 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Items</th>
-                    <th className="px-5 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Total</th>
-                    <th className="px-5 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Status</th>
-                    <th className="px-5 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Time</th>
+                    <th className="px-5 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wide">Order</th>
+                    <th className="px-5 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wide">Student</th>
+                    <th className="px-5 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wide">Items</th>
+                    <th className="px-5 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wide">Total</th>
+                    <th className="px-5 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wide">Status</th>
+                    <th className="px-5 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wide">Time</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-50">
                   {data.recentOrders.map((o) => {
                     const st = STATUS_STYLES[o.status] ?? { label: o.status, cls: "bg-gray-100 text-gray-600" };
                     return (
-                      <tr key={o._id} className="hover:bg-gray-50/60 transition">
-                        <td className="px-5 py-3 font-mono text-xs text-gray-500">{o.orderNumber}</td>
-                        <td className="px-5 py-3">
-                          <p className="font-semibold text-gray-800 text-sm leading-tight">{o.studentName}</p>
-                          <p className="text-xs text-gray-400">{o.schoolId}</p>
+                      <tr key={o._id} className="hover:bg-gray-50 transition cursor-pointer" onClick={() => navigate("/dashboard/orders")}>
+                        <td className="px-5 py-3.5 font-mono text-xs font-semibold text-[#4a6741]">{o.orderNumber}</td>
+                        <td className="px-5 py-3.5">
+                          <p className="font-medium text-gray-800 text-sm leading-tight truncate">{o.studentName}</p>
+                          <p className="text-xs text-gray-400 font-mono">{o.schoolId}</p>
                         </td>
-                        <td className="px-5 py-3 text-gray-500">{o.items?.reduce((s, i) => s + i.quantity, 0) ?? 0} item(s)</td>
-                        <td className="px-5 py-3 font-bold text-gray-800">{peso(o.total)}</td>
-                        <td className="px-5 py-3">
-                          <span className={`px-2.5 py-1 rounded-full text-xs font-semibold ${st.cls}`}>{st.label}</span>
+                        <td className="px-5 py-3.5 text-xs text-gray-500">{o.items?.reduce((s, i) => s + i.quantity, 0) ?? 0} item(s)</td>
+                        <td className="px-5 py-3.5 text-sm font-bold text-gray-800">{peso(o.total)}</td>
+                        <td className="px-5 py-3.5">
+                          <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${st.cls}`}>{st.label}</span>
                         </td>
-                        <td className="px-5 py-3 text-xs text-gray-400">{fmt(o.createdAt)}</td>
+                        <td className="px-5 py-3.5 text-xs text-gray-400 font-mono">{fmt(o.createdAt)}</td>
                       </tr>
                     );
                   })}

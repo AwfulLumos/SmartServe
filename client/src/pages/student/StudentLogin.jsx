@@ -23,6 +23,7 @@ export default function StudentLogin() {
     setError("");
     const result = await login(form.schoolId, form.password);
     if (result.success) {
+      sessionStorage.setItem("smartserve_student_just_logged_in", "true");
       navigate("/student/dashboard");
     } else {
       setError(result.message);

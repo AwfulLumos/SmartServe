@@ -1,19 +1,20 @@
 import {
-  createContext, // Para gumawa ng context object na pwedeng i-share sa buong app
-  useContext,    // Para kunin ang current context value sa custom hook
-  useState,      // Para i-hold ang student auth state
-  useEffect      // Para mag-run ng side effect kapag nagbago ang student data
+  createContext, // To create a context object that can be shared across the app
+  useContext,    // To consume the current context value in a custom hook
+  useState,      // To hold the student auth state
+  useEffect,     // To run side effects when student data changes
+  useCallback    // To memoize functions
 } from "react";
-import api from "../utils/api";            // Axios instance na may shared base URL + Authorization header para sa general auth requests
-import studentApi from "../utils/studentApi"; // Axios instance na may student token interceptor para sa student-only refresh/me requests
+import api from "../utils/api";            // Axios instance with shared base URL + Authorization header for general auth requests
+import studentApi from "../utils/studentApi"; // Axios instance with student token interceptor for student-only requests
 
-const StudentAuthContext = createContext(null); // Context object para sa student auth data
+const StudentAuthContext = createContext(null); // Context object for student auth data
 
 export function StudentAuthProvider({ children }) {
   // ──────────────────────────────────────────────────────
   // STUDENT STATE
-  // Nagho-hold ng current naka-login na student
-  // Kung may saved data sa localStorage, babasahin agad
+  // Holds the current logged-in student
+  // Automatically reads saved data from localStorage if available
   // ──────────────────────────────────────────────────────
   const [student, setStudent] = useState(() => {
     try {
@@ -24,11 +25,19 @@ export function StudentAuthProvider({ children }) {
     }
   });
 
-  const [loading, setLoading] = useState(false); // Para malaman kung naglo-load ang auth action
+  const [loading, setLoading] = useState(false); // To track if auth action is loading
+
+  const persistStudent = (next) => {
+    setStudent((prev) => {
+      const updated = typeof next === "function" ? next(prev) : next;
+      localStorage.setItem("smartserve_student", JSON.stringify(updated));
+      return updated;
+    });
+  };
 
   // ──────────────────────────────────────────────────────
-  // SET AUTH TOKEN SA API HELPER
-  // Kapag may student token, automatic na ilalagay sa Authorization header
+  // SET AUTH TOKEN IN API HELPER
+  // When a student token is present, automatically add it to the Authorization header
   // ──────────────────────────────────────────────────────
   useEffect(() => {
     if (student?.token) {
@@ -38,15 +47,14 @@ export function StudentAuthProvider({ children }) {
 
   // ──────────────────────────────────────────────────────
   // LOGIN FUNCTION
-  // Tatry mag-login gamit ang schoolId at password
-  // Pag success, ise-save ang student data at token
+  // Tries to login using schoolId and password
+  // Saves student data and token on success
   // ──────────────────────────────────────────────────────
   const login = async (schoolId, password) => {
     setLoading(true);
     try {
       const { data } = await api.post("/student/auth/login", { schoolId, password });
-      setStudent(data);
-      localStorage.setItem("smartserve_student", JSON.stringify(data));
+      persistStudent(data);
       api.defaults.headers.common["Authorization"] = `Bearer ${data.token}`;
       return { success: true };
     } catch (err) {
@@ -58,21 +66,51 @@ export function StudentAuthProvider({ children }) {
 
   // ──────────────────────────────────────────────────────
   // REFRESH STUDENT FUNCTION
-  // Kukunin ang latest student info mula sa server
-  // Useful kapag may nagbago sa profile o points
+  // Fetches the latest student info from the server
+  // Useful when profile data or eco points update
   // ──────────────────────────────────────────────────────
-  const refreshStudent = async () => {
+  const refreshStudent = useCallback(async () => {
     try {
       const { data } = await studentApi.get("/student/auth/me");
-      const updated = { ...student, ...data };
-      setStudent(updated);
-      localStorage.setItem("smartserve_student", JSON.stringify(updated));
+      persistStudent((prev) => ({ ...prev, ...data }));
     } catch { /* silent */ }
+  }, []);
+
+  // ──────────────────────────────────────────────────────
+  // UPDATE PROFILE FUNCTION
+  // Logged-in student can update own editable account fields
+  // ──────────────────────────────────────────────────────
+  const updateProfile = async (payload) => {
+    try {
+      const { data } = await studentApi.patch("/student/auth/me", payload);
+      persistStudent((prev) => ({ ...prev, ...data }));
+      return { success: true, student: data };
+    } catch (err) {
+      return { success: false, message: err.response?.data?.message || "Profile update failed" };
+    }
+  };
+
+  // ──────────────────────────────────────────────────────
+  // UPDATE PROFILE PHOTO FUNCTION
+  // Uploads image and updates logged-in student profile photo
+  // ──────────────────────────────────────────────────────
+  const updateProfilePhoto = async (file) => {
+    try {
+      const formData = new FormData();
+      formData.append("profileImage", file);
+      const { data } = await studentApi.patch("/student/auth/me/photo", formData, {
+        headers: { "Content-Type": "multipart/form-data" },
+      });
+      persistStudent((prev) => ({ ...prev, ...data }));
+      return { success: true, student: data };
+    } catch (err) {
+      return { success: false, message: err.response?.data?.message || "Photo upload failed" };
+    }
   };
 
   // ──────────────────────────────────────────────────────
   // LOGOUT FUNCTION
-  // Tatanggal ng student session at localStorage data
+  // Clears student session and localStorage data
   // ──────────────────────────────────────────────────────
   const logout = () => {
     setStudent(null);
@@ -101,10 +139,21 @@ export function StudentAuthProvider({ children }) {
 
   // ──────────────────────────────────────────────────────
   // PROVIDER RETURN
-  // Ibinibigay ang auth state at functions sa mga anak components
+  // Passes the auth state and functions to child components
   // ──────────────────────────────────────────────────────
   return (
-    <StudentAuthContext.Provider value={{ student, loading, login, logout, refreshStudent, changePassword }}>
+    <StudentAuthContext.Provider
+      value={{
+        student,
+        loading,
+        login,
+        logout,
+        refreshStudent,
+        changePassword,
+        updateProfile,
+        updateProfilePhoto,
+      }}
+    >
       {children}
     </StudentAuthContext.Provider>
   );
@@ -112,7 +161,7 @@ export function StudentAuthProvider({ children }) {
 
 // ──────────────────────────────────────────────────────
 // CUSTOM HOOK
-// Gamitin sa components para madaling mag-access ng student auth data
+// Used in components to easily access student auth data
 // ──────────────────────────────────────────────────────
 export function useStudentAuth() {
   const ctx = useContext(StudentAuthContext);

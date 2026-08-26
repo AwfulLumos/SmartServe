@@ -1,12 +1,30 @@
 const express = require("express");
 const router = express.Router();
-const { register, login, getMe, getPendingUsers, approveUser, getStaffAccounts, createStaffAccount, deleteStaffAccount, changePassword, resetStaffPassword } = require("../controllers/authController");
+const {
+	register,
+	login,
+	getMe,
+	getPendingUsers,
+	approveUser,
+	getStaffAccounts,
+	createStaffAccount,
+	deleteStaffAccount,
+	changePassword,
+	resetStaffPassword,
+	updateMyProfile,
+	uploadMyProfileImage,
+	deleteMyProfile,
+} = require("../controllers/authController");
 const { forgotPassword, verifyResetCode, resetPassword } = require("../controllers/passwordController");
 const { protect, restrictTo } = require("../middleware/auth");
+const { uploadProfileImage } = require("../middleware/upload");
 
 router.post("/register", register);
 router.post("/login", login);
 router.get("/me", protect, getMe);
+router.patch("/me/profile", protect, updateMyProfile);
+router.post("/me/profile-image", protect, uploadProfileImage.single("profileImage"), uploadMyProfileImage);
+router.delete("/me/profile", protect, deleteMyProfile);
 
 // Password reset flow (public)
 router.post("/forgot-password", forgotPassword);

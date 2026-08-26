@@ -17,7 +17,7 @@ const protectStudent = async (req, res, next) => {
       return res.status(401).json({ message: "Not authorized" });
     }
 
-    req.student = await Student.findById(decoded.id).select("-password -resetCode -resetCodeExpiry");
+    req.student = await Student.findById(decoded.id);
     if (!req.student) {
       return res.status(401).json({ message: "Student not found" });
     }

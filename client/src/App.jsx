@@ -1,4 +1,5 @@
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { useEffect } from "react";
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { Toaster } from "react-hot-toast";
 import { AuthProvider, useAuth } from "./context/AuthContext";
 import { StudentAuthProvider, useStudentAuth } from "./context/StudentAuthContext";
@@ -13,8 +14,10 @@ import RegisterStudent from "./pages/admin/RegisterStudent";
 import Inventory from "./pages/admin/Inventory";
 import Rewards from "./pages/admin/Rewards";
 import Orders from "./pages/admin/Orders";
-import Settings from "./pages/admin/Settings";
+import MenuManagement from "./pages/admin/MenuManagement";
 import Analytics from "./pages/admin/Analytics";
+import Feedbacks from "./pages/admin/Feedbacks";
+import Account from "./pages/admin/Account";
 import StudentSplash from "./pages/student/StudentSplash";
 import StudentLogin from "./pages/student/StudentLogin";
 import StudentForgotPassword from "./pages/student/StudentForgotPassword";
@@ -67,148 +70,205 @@ function StudentGuestRoute({ children }) {
 function AppNotificationsGate({ children }) {
   const { user } = useAuth();
   const { student, refreshStudent } = useStudentAuth();
+  const location = useLocation();
 
-  if (user) {
-    return (
-      <NotificationProvider role="admin" token={user.token} id={user._id}>
-        {children}
-      </NotificationProvider>
-    );
+  const isStudentRoute = location.pathname.startsWith("/student");
+
+  if (isStudentRoute) {
+    if (student) {
+      const handleStudentNotification = (notif) => {
+        // Refresh points balance whenever eco points or rewards change
+        if (notif.type === "byoc_awarded" || notif.type === "reward_redeemed") {
+          refreshStudent();
+        }
+      };
+      return (
+        <NotificationProvider
+          role="student"
+          token={student.token}
+          id={student._id}
+          onNotification={handleStudentNotification}
+        >
+          {children}
+        </NotificationProvider>
+      );
+    }
+    if (user) {
+      return (
+        <NotificationProvider role="admin" token={user.token} id={user._id}>
+          {children}
+        </NotificationProvider>
+      );
+    }
+  } else {
+    if (user) {
+      return (
+        <NotificationProvider role="admin" token={user.token} id={user._id}>
+          {children}
+        </NotificationProvider>
+      );
+    }
+    if (student) {
+      const handleStudentNotification = (notif) => {
+        // Refresh points balance whenever eco points or rewards change
+        if (notif.type === "byoc_awarded" || notif.type === "reward_redeemed") {
+          refreshStudent();
+        }
+      };
+      return (
+        <NotificationProvider
+          role="student"
+          token={student.token}
+          id={student._id}
+          onNotification={handleStudentNotification}
+        >
+          {children}
+        </NotificationProvider>
+      );
+    }
   }
-  if (student) {
-    const handleStudentNotification = (notif) => {
-      // Refresh points balance whenever eco points or rewards change
-      if (notif.type === "byoc_awarded" || notif.type === "reward_redeemed") {
-        refreshStudent();
-      }
-    };
-    return (
-      <NotificationProvider
-        role="student"
-        token={student.token}
-        id={student._id}
-        onNotification={handleStudentNotification}
-      >
-        {children}
-      </NotificationProvider>
-    );
-  }
+
   return children;
 }
 
 function App() {
+  useEffect(() => {
+    const theme = localStorage.getItem("smartserve_theme");
+    if (theme === "dark") {
+      document.documentElement.classList.add("dark");
+    } else {
+      document.documentElement.classList.remove("dark");
+    }
+  }, []);
+
   return (
     <AuthProvider>
       <StudentAuthProvider>
         <BrowserRouter>
           <Toaster position="top-center" toastOptions={{ duration: 2500 }} />
           <AppNotificationsGate>
-          <Routes>
-            {/* Admin / Staff routes */}
-            <Route
-              path="/login"
-              element={
-                <GuestRoute>
-                  <Login />
-                </GuestRoute>
-              }
-            />
-            <Route
-              path="/register"
-              element={
-                <GuestRoute>
-                  <Register />
-                </GuestRoute>
-              }
-            />
-            <Route path="/forgot-password" element={<ForgotPassword />} />
-            <Route path="/verify-reset-code" element={<VerifyResetCode />} />
-            <Route path="/reset-password" element={<ResetPassword />} />
-            <Route
-              path="/dashboard"
-              element={
-                <ProtectedRoute>
-                  <AdminDashboard />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/dashboard/register-student"
-              element={
-                <ProtectedRoute>
-                  <RegisterStudent />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/dashboard/inventory"
-              element={
-                <ProtectedRoute>
-                  <Inventory />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/dashboard/orders"
-              element={
-                <ProtectedRoute>
-                  <Orders />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/dashboard/rewards"
-              element={
-                <ProtectedRoute>
-                  <Rewards />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/dashboard/analytics"
-              element={
-                <ProtectedRoute>
-                  <Analytics />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/dashboard/settings"
-              element={<Navigate to="/dashboard/settings/staff" replace />}
-            />
-            <Route
-              path="/dashboard/settings/:section"
-              element={
-                <ProtectedRoute>
-                  <Settings />
-                </ProtectedRoute>
-              }
-            />
+            <Routes>
+              {/* Admin / Staff routes */}
+              <Route
+                path="/login"
+                element={
+                  <GuestRoute>
+                    <Login />
+                  </GuestRoute>
+                }
+              />
+              <Route
+                path="/register"
+                element={
+                  <GuestRoute>
+                    <Register />
+                  </GuestRoute>
+                }
+              />
+              <Route path="/forgot-password" element={<ForgotPassword />} />
+              <Route path="/verify-reset-code" element={<VerifyResetCode />} />
+              <Route path="/reset-password" element={<ResetPassword />} />
+              <Route
+                path="/dashboard"
+                element={
+                  <ProtectedRoute>
+                    <AdminDashboard />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/dashboard/register-student"
+                element={
+                  <ProtectedRoute>
+                    <RegisterStudent />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/dashboard/inventory"
+                element={
+                  <ProtectedRoute>
+                    <Inventory />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/dashboard/orders"
+                element={
+                  <ProtectedRoute>
+                    <Orders />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/dashboard/rewards"
+                element={
+                  <ProtectedRoute>
+                    <Rewards />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/dashboard/analytics"
+                element={
+                  <ProtectedRoute>
+                    <Analytics />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/dashboard/feedbacks"
+                element={
+                  <ProtectedRoute>
+                    <Feedbacks />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/dashboard/account"
+                element={
+                  <ProtectedRoute>
+                    <Account />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/dashboard/settings"
+                element={<Navigate to="/dashboard/settings/staff" replace />}
+              />
+              <Route
+                path="/dashboard/settings/:section"
+                element={
+                  <ProtectedRoute>
+                    <MenuManagement />
+                  </ProtectedRoute>
+                }
+              />
 
-            {/* Student routes */}
-            <Route path="/student" element={<StudentSplash />} />
-            <Route
-              path="/student/login"
-              element={
-                <StudentGuestRoute>
-                  <StudentLogin />
-                </StudentGuestRoute>
-              }
-            />
-            <Route path="/student/forgot-password" element={<StudentForgotPassword />} />
-            <Route path="/student/verify-reset-code" element={<StudentVerifyResetCode />} />
-            <Route path="/student/reset-password" element={<StudentResetPassword />} />
-            <Route
-              path="/student/dashboard"
-              element={
-                <StudentProtectedRoute>
-                  <StudentDashboard />
-                </StudentProtectedRoute>
-              }
-            />
+              {/* Student routes */}
+              <Route path="/student" element={<StudentSplash />} />
+              <Route
+                path="/student/login"
+                element={
+                  <StudentGuestRoute>
+                    <StudentLogin />
+                  </StudentGuestRoute>
+                }
+              />
+              <Route path="/student/forgot-password" element={<StudentForgotPassword />} />
+              <Route path="/student/verify-reset-code" element={<StudentVerifyResetCode />} />
+              <Route path="/student/reset-password" element={<StudentResetPassword />} />
+              <Route
+                path="/student/dashboard"
+                element={
+                  <StudentProtectedRoute>
+                    <StudentDashboard />
+                  </StudentProtectedRoute>
+                }
+              />
 
-            <Route path="/" element={<Navigate to="/login" replace />} />
-          </Routes>
+              <Route path="/" element={<Navigate to="/login" replace />} />
+            </Routes>
           </AppNotificationsGate>
         </BrowserRouter>
       </StudentAuthProvider>

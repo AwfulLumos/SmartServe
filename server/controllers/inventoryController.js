@@ -37,7 +37,7 @@ exports.getItems = async (req, res) => {
 // POST /api/inventory
 exports.createItem = async (req, res) => {
   try {
-    const { name, category, quantity, unit, minThreshold, price } = req.body;
+    const { name, category, quantity, unit, minThreshold, price, unitCost } = req.body;
     if (!name || !category || quantity === undefined || !unit || minThreshold === undefined || price === undefined) {
       return res.status(400).json({ message: "All fields are required" });
     }
@@ -47,7 +47,7 @@ exports.createItem = async (req, res) => {
       return res.status(409).json({ message: "An item with that name and category already exists" });
     }
 
-    const item = await InventoryItem.create({ name, category, quantity, unit, minThreshold, price });
+    const item = await InventoryItem.create({ name, category, quantity, unit, minThreshold, price, unitCost: unitCost ?? 0 });
 
     logAudit({
       action: "Inventory Item Added",
@@ -68,10 +68,10 @@ exports.createItem = async (req, res) => {
 // PUT /api/inventory/:id
 exports.updateItem = async (req, res) => {
   try {
-    const { name, category, quantity, unit, minThreshold, price } = req.body;
+    const { name, category, quantity, unit, minThreshold, price, unitCost } = req.body;
     const item = await InventoryItem.findByIdAndUpdate(
       req.params.id,
-      { name, category, quantity, unit, minThreshold, price },
+      { name, category, quantity, unit, minThreshold, price, unitCost },
       { new: true, runValidators: true }
     );
     if (!item) return res.status(404).json({ message: "Item not found" });

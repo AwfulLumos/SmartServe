@@ -1,58 +1,59 @@
 import {
-  createContext,     // Gumagawa ng React Context para i-share ang notification data
-  useContext,        // Ginagamit sa useNotifications hook para kunin ang context value
-  useState,          // Para sa notifications array at unread count state
-  useEffect,         // Para sa Socket.IO connection at cleanup
-  useRef,            // Para sa socket reference at latest notification ID tracker
-  useCallback        // Para i-memoize ang functions (fetchNotifications, markAllRead, markOneRead)
+  createContext,     // Creates a React Context to share notification data
+  useContext,        // Used in useNotifications hook to consume the context value
+  useState,          // Holds notifications array and unread count state
+  useEffect,         // Handles Socket.IO connection and cleanup lifecycle
+  useRef,            // References the socket connection and tracks the latest notification ID
+  useCallback        // Memoizes utility functions (fetchNotifications, markAllRead, markOneRead)
 } from "react";
-import { io } from "socket.io-client";  // Para sa real-time WebSocket connection
-import toast from "react-hot-toast";     // Para sa popup notification toasts
-import api from "../utils/api";          // Custom API utility para sa HTTP requests
+import { io } from "socket.io-client";  // For real-time WebSocket connection
+import toast from "react-hot-toast";     // For popup notification toasts
+import api from "../utils/api";          // Custom API utility for HTTP requests
+import studentApi from "../utils/studentApi"; // Custom API utility for student HTTP requests
 
 // ──────────────────────────────────────────────────────
 // NOTIFICATION CONTEXT
-// Ginagamit para i-manage ang notifications sa buong app
-// May real-time updates via Socket.IO at fallback na polling
+// Manages application-wide notifications
+// Includes real-time Socket.IO sync with fallback HTTP polling
 // ──────────────────────────────────────────────────────
 
 const NotificationContext = createContext(null);
 
 // ──────────────────────────────────────────────────────
-// TYPE LABEL MAP - para sa notification labels
-// Ginagamit para i-convert ang notification type sa readable text
+// TYPE LABEL MAP - for readable notification labels
+// Maps technical notification type identifiers to user-friendly text
 // ──────────────────────────────────────────────────────
 const TYPE_LABEL = {
-  order_placed:    "New Order",        // Bagong order
-  order_status:    "Order Update",     // Update sa order status
-  byoc_awarded:    "Eco Points",       // Eco points awarded
+  order_placed: "New Order",        // New canteen order placed
+  order_status: "Order Update",     // Update sa order status
+  byoc_awarded: "Eco Points",       // Eco points awarded
   reward_redeemed: "Reward Redeemed",  // Reward redeemed
 };
 
 /**
- * role  : "admin" | "student" - kung sino ang user
- * token : JWT string - para sa authentication
- * id    : user/student ObjectId string (students only) - student ID
+ * role  : "admin" | "student" - user role authorization
+ * token : JWT string - token authorization header
+ * id    : user/student ObjectId string (students only)
  */
 export function NotificationProvider({ role, token, id, onNotification, children }) {
   // ──────────────────────────────────────────────────────
   // STATE VARIABLES
   // ──────────────────────────────────────────────────────
 
-  // Listahan ng lahat ng notifications
+  // List of all notifications
   const [notifications, setNotifications] = useState([]);
 
-  // Bilang ng unread notifications (para sa badge)
+  // Unread notification count (for tab badge indicator)
   const [unread, setUnread] = useState(0);
 
-  // Reference sa Socket.IO connection
+  // Reference to the active Socket.IO client connection
   const socketRef = useRef(null);
 
-  // Track ng pinakabagong notification ID na na-toast na
-  // Para di mag-re-toast kapag nagpo-poll
+  // Tracks the ID of the most recent notification toasted
+  // Prevents duplicate toast alerts during polling fallback cycles
   const latestIdRef = useRef(null);
 
-  // Track ng notification IDs that have already shown a toast
+  // Track notification IDs that have already shown a toast
   // This prevents duplicates when a notification arrives via socket and polling
   const displayedIdsRef = useRef(new Set());
 
@@ -60,7 +61,6 @@ export function NotificationProvider({ role, token, id, onNotification, children
     if (!notif || displayedIdsRef.current.has(notif._id)) return;
     displayedIdsRef.current.add(notif._id);
     toast(notif.body, {
-      icon: role === "admin" ? "🔔" : "✨",
       duration: 4000,
       style: { fontSize: "13px", maxWidth: "320px" },
     });
@@ -74,7 +74,7 @@ export function NotificationProvider({ role, token, id, onNotification, children
 
   let SOCKET_URL = null;
   if (import.meta.env.VITE_SOCKET_URL) {
-    // May explicit na socket URL sa environment
+    // Use explicit socket URL from environment variables
     SOCKET_URL = import.meta.env.VITE_SOCKET_URL;
   } else if (isLocalDev) {
     // Local dev: same origin, Vite will proxy to backend
@@ -83,85 +83,88 @@ export function NotificationProvider({ role, token, id, onNotification, children
 
   // ──────────────────────────────────────────────────────
   // FETCH NOTIFICATIONS FUNCTION
-  // Kuha ng notifications from REST API
+  // Retrieves notifications from the REST API endpoints
   // ──────────────────────────────────────────────────────
   const fetchNotifications = useCallback(async () => {
-    if (!token) return; // Walang token? Wag mag-fetch
+    if (!token) return; // Do not fetch without a valid authentication token
     try {
-      // Different endpoint para admin vs student
+      // Resolve endpoint and client instance based on the user role (admin vs student)
+      const axiosInstance = role === "admin" ? api : studentApi;
       const endpoint = role === "admin" ? "/notifications/admin" : "/notifications/student";
-      const { data } = await api.get(endpoint, {
+      const { data } = await axiosInstance.get(endpoint, {
         headers: { Authorization: `Bearer ${token}` },
       });
       const incoming = data.notifications || [];
 
       // On subsequent polls, toast any notifications newer than what we last saw
       if (latestIdRef.current !== null && incoming.length > 0) {
-        // Kunin ang mga ID na meron na
+        // Retrieve existing notification IDs
         const prevIds = new Set(
           notifications.map ? notifications.map((n) => n._id) : []
         );
-        // Filter ang mga brand new at unread
+        // Filter out unread, newly incoming notifications
         const brandNew = incoming.filter((n) => !prevIds.has(n._id) && !n.read);
         brandNew.forEach((n) => {
-          if (onNotification) onNotification(n); // Callback function
-          toast(n.body, { // Ipakita ang toast notification
-            icon: role === "admin" ? "🔔" : "✨",
+          if (onNotification) onNotification(n); // Execute dynamic notification callback
+          toast(n.body, { // Display instant user alert toast
             duration: 4000,
             style: { fontSize: "13px", maxWidth: "320px" },
           });
         });
       }
 
-      // Update ang latest ID tracker
+      // Update the latest ID tracker for deduplication
       if (incoming.length > 0) latestIdRef.current = incoming[0]._id;
-      setNotifications(incoming); // Update ang notifications list
-      setUnread(data.unread || 0); // Update ang unread count
+      setNotifications(incoming); // Update local state list
+      setUnread(data.unread || 0); // Update unread count indicator
     } catch {
-      // Non-fatal error, wag i-interrupt ang app
+      // Fail silently without interrupting user interaction
     }
   }, [token, role]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ──────────────────────────────────────────────────────
   // MARK ALL READ FUNCTION
-  // Gawin read lahat ng notifications
+  // Sets read status of all user notifications to true
   // ──────────────────────────────────────────────────────
   const markAllRead = useCallback(async () => {
     if (!token) return;
     try {
-      // Different endpoint para admin vs student
+      // Choose backend endpoint/instance depending on user role
+      const axiosInstance = role === "admin" ? api : studentApi;
       const endpoint = role === "admin" ? "/notifications/admin/read-all" : "/notifications/student/read-all";
-      await api.patch(endpoint, {}, {
+      await axiosInstance.patch(endpoint, {}, {
         headers: { Authorization: `Bearer ${token}` },
       });
-      // Update ang local state - mark all as read
+      // Update local state list items
       setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
       setUnread(0); // Reset unread count to 0
     } catch {
-      // Silent fail, wag i-interrupt ang user
+      // Fail silently
     }
   }, [token, role]);
 
   // ──────────────────────────────────────────────────────
   // MARK ONE READ FUNCTION
-  // Gawin read ang isang specific notification
+  // Sets read status of a single specific notification to true
   // ──────────────────────────────────────────────────────
   const markOneRead = useCallback(async (notifId) => {
     try {
-      // Mark as read sa server
-      await api.patch(`/notifications/${notifId}/read`, {}, {
+      // Select appropriate axios instance for role
+      const axiosInstance = role === "admin" ? api : studentApi;
+      // Mark notification as read on the backend
+      await axiosInstance.patch(`/notifications/${notifId}/read`, {}, {
         headers: { Authorization: `Bearer ${token}` },
       });
-      // Update ang local state
+      // Update local state list
       setNotifications((prev) =>
         prev.map((n) => (n._id === notifId ? { ...n, read: true } : n))
       );
-      // Bawasan ang unread count
+      // Decrement the unread count indicator
       setUnread((c) => Math.max(0, c - 1));
     } catch {
-      // Silent fail
+      // Fail silently
     }
-  }, [token]);
+  }, [token, role]);
 
   // ──────────────────────────────────────────────────────
   // SOCKET.IO CONNECTION OR POLLING FALLBACK
@@ -170,7 +173,7 @@ export function NotificationProvider({ role, token, id, onNotification, children
   useEffect(() => {
     if (!token) return;
 
-    fetchNotifications(); // Initial fetch
+    fetchNotifications(); // Initial retrieval on context load
 
     if (!SOCKET_URL) {
       // Vercel serverless: poll every 8 seconds for new notifications
@@ -180,40 +183,39 @@ export function NotificationProvider({ role, token, id, onNotification, children
 
     // May socket URL - connect via Socket.IO
     const socket = io(SOCKET_URL, {
-      transports: ["websocket", "polling"], // Try WebSocket first, fallback to polling
-      auth: { token }, // Send token for authentication
-      reconnectionAttempts: 5, // Try to reconnect 5 times
+      transports: ["websocket", "polling"], // Prioritize WebSocket connections with HTTP polling fallback
+      auth: { token }, // Include authentication token in connect payload
+      reconnectionAttempts: 5, // Reconnection retry limit
     });
     socketRef.current = socket;
 
-    // Kapag connected na
+    // Connection established successfully
     socket.on("connect", () => {
       if (role === "admin") {
-        socket.emit("join:admin"); // Join admin room
+        socket.emit("join:admin"); // Subscribe to administrative channel
       } else {
-        socket.emit("join:student", { studentId: id }); // Join student room
+        socket.emit("join:student", { studentId: id }); // Subscribe to personal student channel
       }
-      
+
     });
 
-    // Kapag may bagong notification galing sa server
+    // Event listener for incoming real-time notifications
     socket.on("notification", (notif) => {
-      // Add sa dulo ng list (pinakabago sa taas)
-      setNotifications((prev) => [notif, ...prev].slice(0, 50)); // Limit to 50
-      setUnread((c) => c + 1); // Dagdagan ang unread count
-      if (onNotification) onNotification(notif); // Call callback
+      // Prepend the new notification to local state (capped at 50)
+      setNotifications((prev) => [notif, ...prev].slice(0, 50));
+      setUnread((c) => c + 1); // Increment unread count
+      if (onNotification) onNotification(notif); // Fire callback hook
 
-      // Ipakita ang toast notification about to sa food. yung sa taas na
+      // Display native app toast message
       toast(notif.body, {
-        icon: role === "admin" ? "🔔" : "✨",
         duration: 4000,
         style: { fontSize: "13px", maxWidth: "320px" },
       });
     });
 
-    // Kapag may connection error
+    // Event listener for WebSocket connection errors
     socket.on("connect_error", () => {
-      // Socket unavailable - fall back to silent polling
+      // Fallback silently to HTTP polling
     });
 
     // Cleanup function
@@ -224,7 +226,7 @@ export function NotificationProvider({ role, token, id, onNotification, children
   }, [token, role, id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ──────────────────────────────────────────────────────
-  // PROVIDER RETURN - ibigay ang notification data sa child components
+  // PROVIDER RETURN - Expose notification state and actions to children
   // ──────────────────────────────────────────────────────
   return (
     <NotificationContext.Provider
@@ -236,7 +238,7 @@ export function NotificationProvider({ role, token, id, onNotification, children
 }
 
 // ──────────────────────────────────────────────────────
-// USE NOTIFICATIONS HOOK - para madaling mag-access ng notification data
+// USE NOTIFICATIONS HOOK - Easy custom hook access to notifications context
 // ──────────────────────────────────────────────────────
 export function useNotifications() {
   const ctx = useContext(NotificationContext);

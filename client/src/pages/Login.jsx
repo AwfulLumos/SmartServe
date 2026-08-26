@@ -62,7 +62,9 @@ export default function Login() {
 
         {/* Top — Logo */}
         <div className="relative z-10 flex items-center gap-3">
-          <img src={logo} alt="SmartServe" className="w-20 h-20 object-contain drop-shadow-lg" />
+          <div className="w-16 h-16 rounded-full bg-white/20 backdrop-blur-md border border-white/30 p-2 shadow-lg flex items-center justify-center overflow-hidden flex-shrink-0">
+            <img src={logo} alt="SmartServe" className="w-full h-full object-cover rounded-full" />
+          </div>
           <div>
             <h1 className="text-white text-2xl font-bold leading-tight">SmartServe</h1>
             <p className="text-white/70 text-sm">Admin Portal</p>
@@ -102,7 +104,9 @@ export default function Login() {
       <div className="flex-1 flex items-center justify-center bg-white px-8 py-12">
         <div className="w-full max-w-[400px]">
           <div className="flex flex-col items-center mb-8">
-            <img src={logo} alt="SmartServe" className="w-24 h-24 object-contain mb-3" />
+            <div className="w-24 h-24 rounded-full bg-[#f4f8f1] border border-[#4a6741]/20 flex items-center justify-center p-2 mb-4 shadow-md overflow-hidden">
+              <img src={logo} alt="SmartServe" className="w-full h-full object-cover rounded-full" />
+            </div>
             <h2 className="text-3xl font-bold text-brand mb-1">Welcome Back</h2>
             <p className="text-gray-500 text-sm">Sign in to manage your cafeteria</p>
           </div>
