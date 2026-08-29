@@ -13,6 +13,7 @@ router.get("/by-qr/:token", getStudentByQr);
 router.get("/:id", getStudentById);
 router.put("/:id", updateStudent);
 router.put("/:id/restore", restrictTo("admin"), restoreStudent);
+router.patch("/:id/restore", restrictTo("admin"), restoreStudent);
 router.post("/:id/reset-password", resetStudentPassword);
 router.delete("/:id", restrictTo("admin"), deleteStudent);
 router.delete("/:id/permanent", restrictTo("admin"), permanentDeleteStudent);

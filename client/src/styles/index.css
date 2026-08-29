@@ -141,11 +141,13 @@ select.no-custom-arrow {
 }
 
 /* Hide scrollbar utility for clean UI on touch/scroll containers */
-.scrollbar-hide::-webkit-scrollbar {
+.scrollbar-hide::-webkit-scrollbar,
+.scrollbar-none::-webkit-scrollbar {
   display: none;
 }
 
-.scrollbar-hide {
+.scrollbar-hide,
+.scrollbar-none {
   -ms-overflow-style: none;
   /* IE and Edge */
   scrollbar-width: none;

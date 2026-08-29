@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { IoLockClosed, IoArrowBack, IoCheckmarkCircle, IoEyeOutline, IoEyeOffOutline } from "react-icons/io5";
-import api from "../utils/api";
+import api from "../../utils/api";
 
 export default function ResetPassword() {
   const navigate = useNavigate();
