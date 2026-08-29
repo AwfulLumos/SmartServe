@@ -3,6 +3,9 @@ const http = require("http");
 const express = require("express");
 const cors = require("cors");
 const dotenv = require("dotenv");
+const helmet = require("helmet");
+const mongoSanitize = require("express-mongo-sanitize");
+const rateLimit = require("express-rate-limit");
 const connectDB = require("./config/db");
 const { init: initSocket } = require("./socket");
 
@@ -21,7 +24,48 @@ if (process.env.VERCEL !== "1") {
 // Connect to MongoDB
 connectDB();
 
-// Middleware
+// -------------------------------------------------------------
+// Security Middleware (Phase 1)
+// -------------------------------------------------------------
+
+// 1. Helmet HTTP Security Headers (allow cross-origin for uploads)
+app.use(
+  helmet({
+    crossOriginResourcePolicy: { policy: "cross-origin" },
+  })
+);
+
+// 2. Prevent NoSQL Injection Attacks
+app.use(mongoSanitize());
+
+// 3. Rate Limiting
+const apiLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 300, // Max 300 requests per 15 minutes per IP
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { message: "Too many requests from this IP, please try again after 15 minutes." },
+});
+
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 15, // Max 15 auth attempts per 15 minutes per IP
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { message: "Too many authentication attempts. Please try again after 15 minutes." },
+});
+
+// Apply rate limiters to API and authentication routes
+app.use("/api/", apiLimiter);
+app.use("/api/auth/login", authLimiter);
+app.use("/api/student/auth/login", authLimiter);
+app.use("/api/auth/register", authLimiter);
+app.use("/api/auth/forgot-password", authLimiter);
+app.use("/api/student/auth/forgot-password", authLimiter);
+
+// -------------------------------------------------------------
+// Core Middleware
+// -------------------------------------------------------------
 app.use(cors({ origin: process.env.CLIENT_URL || "http://localhost:5173" }));
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ limit: "10mb", extended: true }));
