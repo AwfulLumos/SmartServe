@@ -2,6 +2,7 @@ const express = require("express");
 const router = express.Router();
 const {
   login,
+  logout,
   getMe,
   updateMe,
   updateMyPhoto,
@@ -21,6 +22,7 @@ const {
 } = require("../middleware/validators");
 
 router.post("/login", validateStudentLogin, login);
+router.post("/logout", logout);
 router.get("/me", protectStudent, getMe);
 router.patch("/me", protectStudent, updateMe);
 router.patch("/me/photo", protectStudent, uploadProfileImage.single("profileImage"), updateMyPhoto);

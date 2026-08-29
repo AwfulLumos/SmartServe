@@ -36,6 +36,8 @@ const studentSchema = new mongoose.Schema(
     qrToken: { type: String, unique: true, sparse: true },
     resetCode: { type: String, default: null },
     resetCodeExpiry: { type: Date, default: null },
+    failedLoginAttempts: { type: Number, default: 0 },
+    lockUntil: { type: Date, default: null },
   },
   { timestamps: true }
 );
@@ -48,6 +50,10 @@ studentSchema.pre("save", async function (next) {
 
 studentSchema.methods.matchPassword = async function (password) {
   return bcrypt.compare(password, this.password);
+};
+
+studentSchema.methods.isLocked = function () {
+  return !!(this.lockUntil && this.lockUntil > Date.now());
 };
 
 module.exports = mongoose.model("Student", studentSchema);

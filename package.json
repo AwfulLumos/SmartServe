@@ -5,6 +5,7 @@
   "scripts": {
     "setup": "node setup.js",
     "install:all": "cd server && npm install && cd ../client && npm install",
+    "postinstall": "npm run install:all",
     "dev": "concurrently \"cd server && npm run dev\" \"cd client && npm run dev\"",
     "start": "cd server && npm start",
     "build": "cd client && npm run build"

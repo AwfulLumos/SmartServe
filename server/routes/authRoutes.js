@@ -3,6 +3,7 @@ const router = express.Router();
 const {
 	register,
 	login,
+	logout,
 	getMe,
 	getPendingUsers,
 	approveUser,
@@ -31,6 +32,7 @@ const {
 
 router.post("/register", validateRegister, register);
 router.post("/login", validateLogin, login);
+router.post("/logout", logout);
 router.get("/me", protect, getMe);
 router.patch("/me/profile", protect, validateUpdateProfile, updateMyProfile);
 router.post("/me/profile-image", protect, uploadProfileImage.single("profileImage"), uploadMyProfileImage);

@@ -6,15 +6,15 @@ This document outlines the security updates implemented in **SMARTSERVE** to pro
 
 ## Overview of Security Features
 
-The security fortification strategy is divided into progressive phases. **Phase 1** (HTTP & Traffic Security) and **Phase 2** (Data Validation & Sanitization) have been fully integrated into the backend core.
+The security fortification strategy is divided into progressive phases. **Phase 1** (HTTP & Traffic Security), **Phase 2** (Data Validation & Sanitization), and **Phase 3** (Account Lockout & HttpOnly Cookies) have been fully integrated into the backend core.
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────┐
-│                          SMARTSERVE SECURITY                        │
+│                          SMARTSERVE SECURITY                            │
 ├──────────────────────────┬──────────────────────────────────────────────┤
 │ Phase 1: Traffic & HTTP  │ Helmet Headers, NoSQL Sanitizer, Rate Limit  │
 │ Phase 2: Data & Payload  │ Express Validator, Schema Checks, Whitelist  │
-│ Phase 3 (Planned)        │ HttpOnly Cookies, Token Expiration & Refresh │
+│ Phase 3: Auth & Session  │ Account Lockout (5 Fails), HttpOnly Cookies  │
 │ Phase 4 (Planned)        │ Deep MIME File Validation (Magic Bytes)      │
 └──────────────────────────┴──────────────────────────────────────────────┘
 ```
@@ -37,8 +37,8 @@ The security fortification strategy is divided into progressive phases. **Phase 
 - **Package**: `express-rate-limit` (v8.7.0)
 - **Purpose**: Prevents Denial of Service (DoS) attacks and brute-force password cracking attempts.
 - **Limiters Implemented**:
-  1. **Global API Limiter (`apiLimiter`)**: Limits all `/api/*` endpoints to a maximum of **300 requests per 15 minutes** per IP.
-  2. **Auth Endpoint Limiter (`authLimiter`)**: Applied strictly to sensitive endpoints (`/api/auth/login`, `/api/student/auth/login`, `/register`, `/forgot-password`). Limits attempts to **15 requests per 15 minutes** per IP.
+  1. **Global API Limiter (`apiLimiter`)**: Limits all `/api/*` endpoints to a maximum of **300 requests per 15 minutes** (1000 in dev) per IP.
+  2. **Auth Endpoint Limiter (`authLimiter`)**: Applied strictly to sensitive endpoints (`/api/auth/login`, `/api/student/auth/login`, `/register`, `/forgot-password`). Limits attempts to **15 requests per 15 minutes** (100 in dev) per IP.
 
 ---
 
@@ -65,6 +65,27 @@ The security fortification strategy is divided into progressive phases. **Phase 
 
 ---
 
+## Phase 3: Account Lockout Guard & HttpOnly Cookies
+
+### 1. User-Level Account Lockout Guard
+- **Schemas Modified**: `User.js` & `Student.js`
+- **Fields Added**: `failedLoginAttempts` (Number), `lockUntil` (Date)
+- **Mechanism**:
+  - Tracks consecutive failed password attempts for any specific account.
+  - Upon **5 consecutive failed login attempts**, the user or student account is automatically locked for **15 minutes**.
+  - Subsequent login attempts during lockout are blocked with `HTTP 403 Forbidden` and report the exact minutes remaining.
+  - Successful login resets the counter to 0 and clears the lock.
+
+### 2. HttpOnly Cookie Support (`cookie-parser`)
+- **Package**: `cookie-parser` (v1.4.7)
+- **Mechanism**:
+  - On successful login, JWT tokens are issued as `HttpOnly`, `SameSite=Lax` cookies (`token` for staff, `student_token` for students).
+  - Protects tokens from being stolen via XSS (Cross-Site Scripting).
+  - Middleware (`auth.js` and `studentAuth.js`) seamlessly accepts either the `Authorization: Bearer <token>` header OR the `HttpOnly` cookie.
+- **Logout Endpoints**: Added `POST /api/auth/logout` and `POST /api/student/auth/logout` to securely clear session cookies.
+
+---
+
 ## How to Run & Verify Security Setup
 
 1. **Start the Development Server**:
@@ -72,17 +93,15 @@ The security fortification strategy is divided into progressive phases. **Phase 
    npm run dev
    ```
 
-2. **Verify Rate Limiting**:
-   - Send 16 consecutive login requests within 15 minutes to `/api/auth/login`.
-   - The server will respond with HTTP `429 Too Many Requests`.
+2. **Verify Account Lockout**:
+   - Try logging into an account with an incorrect password 5 times in a row.
+   - The 5th failed attempt will lock the account for 15 minutes.
 
-3. **Verify NoSQL Injection Defense**:
-   - Attempt a payload with `{"username": {"$gt": ""}}`.
-   - The sanitizer will strip the `$gt` key, causing the query to execute safely without bypassing auth.
+3. **Verify HttpOnly Cookie**:
+   - Log in via the API and inspect browser cookies for `token` / `student_token` set to `HttpOnly`.
 
 ---
 
-## Security Roadmap (Phases 3 & 4)
+## Security Roadmap (Phase 4)
 
-- **Phase 3 (Session & Token Security)**: Migrate JWT tokens from `localStorage` to `HttpOnly` SameSite cookies, implement Access Token expiration with Refresh Token rotation.
 - **Phase 4 (File Upload Hardening)**: Validate image magic numbers (header bytes) for profile picture uploads to prevent malicious executable files disguised as images.

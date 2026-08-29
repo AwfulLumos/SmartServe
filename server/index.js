@@ -3,6 +3,7 @@ const http = require("http");
 const express = require("express");
 const cors = require("cors");
 const dotenv = require("dotenv");
+const cookieParser = require("cookie-parser");
 const helmet = require("helmet");
 const mongoSanitize = require("express-mongo-sanitize");
 const rateLimit = require("express-rate-limit");
@@ -25,8 +26,11 @@ if (process.env.VERCEL !== "1") {
 connectDB();
 
 // -------------------------------------------------------------
-// Security Middleware (Phase 1)
+// Security Middleware (Phase 1 & Phase 3)
 // -------------------------------------------------------------
+
+// Cookie Parser for HttpOnly Auth Cookies
+app.use(cookieParser());
 
 // 1. Helmet HTTP Security Headers (allow cross-origin for uploads)
 app.use(
