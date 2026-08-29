@@ -41,7 +41,7 @@ app.use(mongoSanitize());
 // 3. Rate Limiting
 const apiLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 300, // Max 300 requests per 15 minutes per IP
+  max: process.env.NODE_ENV === "production" ? 300 : 1000, // Max requests per 15 minutes per IP
   standardHeaders: true,
   legacyHeaders: false,
   message: { message: "Too many requests from this IP, please try again after 15 minutes." },
@@ -49,7 +49,7 @@ const apiLimiter = rateLimit({
 
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 15, // Max 15 auth attempts per 15 minutes per IP
+  max: process.env.NODE_ENV === "production" ? 15 : 100, // 15 in production, 100 in dev for testing
   standardHeaders: true,
   legacyHeaders: false,
   message: { message: "Too many authentication attempts. Please try again after 15 minutes." },

@@ -103,10 +103,13 @@ exports.validateCreateStaff = [
 // -------------------------------------------------------------
 
 exports.validateStudentLogin = [
-  body("identifier")
-    .trim()
-    .notEmpty()
-    .withMessage("Student ID or Email is required"),
+  (req, res, next) => {
+    const id = req.body.schoolId || req.body.identifier;
+    if (!id || typeof id !== "string" || !id.trim()) {
+      return res.status(400).json({ message: "School ID is required" });
+    }
+    next();
+  },
   body("password")
     .notEmpty()
     .withMessage("Password is required"),
@@ -118,20 +121,11 @@ exports.validateStudentLogin = [
 // -------------------------------------------------------------
 
 exports.validateForgotPassword = [
-  body("email")
-    .optional()
-    .trim()
-    .isEmail()
-    .withMessage("Invalid email format")
-    .normalizeEmail(),
-  body("studentId")
-    .optional()
-    .trim()
-    .notEmpty()
-    .withMessage("Invalid Student ID"),
   (req, res, next) => {
-    if (!req.body.email && !req.body.studentId) {
-      return res.status(400).json({ message: "Email or Student ID is required" });
+    const hasEmail = req.body.email && typeof req.body.email === "string" && req.body.email.trim();
+    const hasStudentId = req.body.studentId || req.body.schoolId;
+    if (!hasEmail && !hasStudentId) {
+      return res.status(400).json({ message: "Email or School ID is required" });
     }
     next();
   },
