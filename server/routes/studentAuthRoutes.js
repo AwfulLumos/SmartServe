@@ -2,6 +2,7 @@ const express = require("express");
 const router = express.Router();
 const {
   login,
+  logout,
   getMe,
   updateMe,
   updateMyPhoto,
@@ -11,15 +12,23 @@ const {
   changePassword,
 } = require("../controllers/studentAuthController");
 const { protectStudent } = require("../middleware/studentAuth");
-const { uploadProfileImage } = require("../middleware/upload");
+const { handleProfileImageUpload } = require("../middleware/upload");
+const {
+  validateStudentLogin,
+  validateForgotPassword,
+  validateVerifyResetCode,
+  validateResetPassword,
+  validateChangePassword,
+} = require("../middleware/validators");
 
-router.post("/login", login);
+router.post("/login", validateStudentLogin, login);
+router.post("/logout", logout);
 router.get("/me", protectStudent, getMe);
 router.patch("/me", protectStudent, updateMe);
-router.patch("/me/photo", protectStudent, uploadProfileImage.single("profileImage"), updateMyPhoto);
-router.post("/forgot-password", forgotPassword);
-router.post("/verify-reset-code", verifyResetCode);
-router.post("/reset-password", resetPassword);
-router.patch("/change-password", protectStudent, changePassword);
+router.patch("/me/photo", protectStudent, handleProfileImageUpload, updateMyPhoto);
+router.post("/forgot-password", validateForgotPassword, forgotPassword);
+router.post("/verify-reset-code", validateVerifyResetCode, verifyResetCode);
+router.post("/reset-password", validateResetPassword, resetPassword);
+router.patch("/change-password", protectStudent, validateChangePassword, changePassword);
 
 module.exports = router;

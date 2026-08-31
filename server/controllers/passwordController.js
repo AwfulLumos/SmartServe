@@ -1,5 +1,6 @@
 const crypto = require("crypto");
 const User = require("../models/User");
+const Student = require("../models/Student");
 const { sendResetCode } = require("../config/mailer");
 
 // POST /api/auth/forgot-password
@@ -8,24 +9,31 @@ exports.forgotPassword = async (req, res) => {
     const { email } = req.body;
     if (!email) return res.status(400).json({ message: "Email is required" });
 
-    const user = await User.findOne({ email: email.toLowerCase().trim() });
+    const cleanEmail = email.toLowerCase().trim();
+    let account = await User.findOne({ email: cleanEmail });
+    let accountType = "Staff";
 
-    // Always respond with 200 to prevent email enumeration
-    if (!user) {
-      return res.json({ message: "If that email is registered, a reset code has been sent." });
+    if (!account) {
+      account = await Student.findOne({ email: cleanEmail });
+      accountType = "Student";
+    }
+
+    if (!account) {
+      return res.status(404).json({ message: "No account found with that email address" });
     }
 
     // Generate 6-digit numeric code
     const code = String(Math.floor(100000 + crypto.randomInt(900000)));
     const expiry = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes
 
-    user.resetCode = code;
-    user.resetCodeExpiry = expiry;
-    await user.save({ validateBeforeSave: false });
+    account.resetCode = code;
+    account.resetCodeExpiry = expiry;
+    await account.save({ validateBeforeSave: false });
 
-    await sendResetCode(user.email, code);
+    console.log(`Processing password reset request for ${accountType} User: ${account.email}`);
+    await sendResetCode(account.email, code);
 
-    res.json({ message: "If that email is registered, a reset code has been sent." });
+    res.json({ message: "A password reset code has been sent to your email address." });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -39,13 +47,19 @@ exports.verifyResetCode = async (req, res) => {
       return res.status(400).json({ message: "Email and code are required" });
     }
 
-    const user = await User.findOne({
-      email: email.toLowerCase().trim(),
+    const cleanEmail = email.toLowerCase().trim();
+    const query = {
+      email: cleanEmail,
       resetCode: code,
       resetCodeExpiry: { $gt: new Date() },
-    });
+    };
 
-    if (!user) {
+    let account = await User.findOne(query);
+    if (!account) {
+      account = await Student.findOne(query);
+    }
+
+    if (!account) {
       return res.status(400).json({ message: "Invalid or expired reset code" });
     }
 
@@ -58,34 +72,41 @@ exports.verifyResetCode = async (req, res) => {
 // POST /api/auth/reset-password
 exports.resetPassword = async (req, res) => {
   try {
-    const { email, code, password, confirmPassword } = req.body;
+    const { email, code, password, newPassword, confirmPassword } = req.body;
+    const finalPassword = password || newPassword;
 
-    if (!email || !code || !password) {
-      return res.status(400).json({ message: "All fields are required" });
+    if (!email || !code || !finalPassword) {
+      return res.status(400).json({ message: "Email, code, and new password are required" });
     }
 
-    if (password !== confirmPassword) {
+    if (confirmPassword && finalPassword !== confirmPassword) {
       return res.status(400).json({ message: "Passwords do not match" });
     }
 
-    if (password.length < 6) {
+    if (finalPassword.length < 6) {
       return res.status(400).json({ message: "Password must be at least 6 characters" });
     }
 
-    const user = await User.findOne({
-      email: email.toLowerCase().trim(),
+    const cleanEmail = email.toLowerCase().trim();
+    const query = {
+      email: cleanEmail,
       resetCode: code,
       resetCodeExpiry: { $gt: new Date() },
-    });
+    };
 
-    if (!user) {
+    let account = await User.findOne(query);
+    if (!account) {
+      account = await Student.findOne(query);
+    }
+
+    if (!account) {
       return res.status(400).json({ message: "Invalid or expired reset code" });
     }
 
-    user.password = password;
-    user.resetCode = null;
-    user.resetCodeExpiry = null;
-    await user.save();
+    account.password = finalPassword;
+    account.resetCode = null;
+    account.resetCodeExpiry = null;
+    await account.save();
 
     res.json({ message: "Password reset successfully. You can now sign in." });
   } catch (error) {

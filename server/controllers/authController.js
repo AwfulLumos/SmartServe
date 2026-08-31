@@ -63,7 +63,28 @@ exports.login = async (req, res) => {
     }
 
     const user = await User.findOne({ username });
-    if (!user || !(await user.matchPassword(password))) {
+    if (!user) {
+      return res.status(401).json({ message: "Invalid username or password" });
+    }
+
+    if (user.isLocked()) {
+      const minutesRemaining = Math.ceil((user.lockUntil - Date.now()) / (60 * 1000));
+      return res.status(403).json({
+        message: `Account is temporarily locked due to consecutive failed login attempts. Please try again in ${minutesRemaining} minute(s).`,
+      });
+    }
+
+    const isMatch = await user.matchPassword(password);
+    if (!isMatch) {
+      user.failedLoginAttempts = (user.failedLoginAttempts || 0) + 1;
+      if (user.failedLoginAttempts >= 5) {
+        user.lockUntil = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes lockout
+        await user.save({ validateBeforeSave: false });
+        return res.status(403).json({
+          message: "Account locked due to 5 consecutive failed login attempts. Please try again after 15 minutes.",
+        });
+      }
+      await user.save({ validateBeforeSave: false });
       return res.status(401).json({ message: "Invalid username or password" });
     }
 
@@ -72,6 +93,13 @@ exports.login = async (req, res) => {
         message: "Your account is pending approval by an admin. Please try again later.",
       });
     }
+
+    // Reset lockout counters on success
+    user.failedLoginAttempts = 0;
+    user.lockUntil = null;
+    user.lastLoginAt = new Date();
+    user.loginCount = (user.loginCount || 0) + 1;
+    await user.save({ validateBeforeSave: false });
 
     logAudit({
       action: "Staff Login",
@@ -82,9 +110,15 @@ exports.login = async (req, res) => {
       category: "auth",
     });
 
-    user.lastLoginAt = new Date();
-    user.loginCount = (user.loginCount || 0) + 1;
-    await user.save({ validateBeforeSave: false });
+    const token = generateToken(user._id);
+
+    // Set secure HttpOnly cookie
+    res.cookie("token", token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      maxAge: 7 * 24 * 60 * 60 * 1000,
+    });
 
     res.json({
       _id: user._id,
@@ -96,11 +130,21 @@ exports.login = async (req, res) => {
       lastLoginAt: user.lastLoginAt,
       loginCount: user.loginCount || 0,
       createdAt: user.createdAt,
-      token: generateToken(user._id),
+      token,
     });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
+};
+
+// POST /api/auth/logout
+exports.logout = async (req, res) => {
+  res.clearCookie("token", {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax",
+  });
+  res.json({ message: "Logged out successfully" });
 };
 
 // GET /api/auth/me  (protected)
