@@ -1,4 +1,4 @@
-# SmartServe 2.0 - Email Password Reset Flow Guide
+# Smartserve  - Email Password Reset Flow Guide
 
 ## Architecture Summary
 The password reset system provides 6-digit OTP delivery exclusively via email (Gmail SMTP) without exposing OTP secrets in terminal logs.
