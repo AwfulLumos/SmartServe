@@ -15,7 +15,7 @@ export default function StudentVerifyResetCode() {
   const [error, setError] = useState("");
   const inputsRef = useRef([]);
 
-  if (!schoolId || !email) {
+  if (!schoolId && !email) {
     navigate("/student/forgot-password");
     return null;
   }
@@ -53,8 +53,8 @@ export default function StudentVerifyResetCode() {
     setError("");
     setLoading(true);
     try {
-      await api.post("/student/auth/verify-reset-code", { schoolId, code });
-      navigate("/student/reset-password", { state: { schoolId, code } });
+      await api.post("/student/auth/verify-reset-code", { schoolId, email, code });
+      navigate("/student/reset-password", { state: { schoolId, email, code } });
     } catch (err) {
       setError(err.response?.data?.message || "Invalid or expired code. Please try again.");
     } finally {

@@ -12,7 +12,7 @@ const {
   changePassword,
 } = require("../controllers/studentAuthController");
 const { protectStudent } = require("../middleware/studentAuth");
-const { uploadProfileImage } = require("../middleware/upload");
+const { handleProfileImageUpload } = require("../middleware/upload");
 const {
   validateStudentLogin,
   validateForgotPassword,
@@ -25,7 +25,7 @@ router.post("/login", validateStudentLogin, login);
 router.post("/logout", logout);
 router.get("/me", protectStudent, getMe);
 router.patch("/me", protectStudent, updateMe);
-router.patch("/me/photo", protectStudent, uploadProfileImage.single("profileImage"), updateMyPhoto);
+router.patch("/me/photo", protectStudent, handleProfileImageUpload, updateMyPhoto);
 router.post("/forgot-password", validateForgotPassword, forgotPassword);
 router.post("/verify-reset-code", validateVerifyResetCode, verifyResetCode);
 router.post("/reset-password", validateResetPassword, resetPassword);

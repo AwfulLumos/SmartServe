@@ -18,7 +18,7 @@ const {
 } = require("../controllers/authController");
 const { forgotPassword, verifyResetCode, resetPassword } = require("../controllers/passwordController");
 const { protect, restrictTo } = require("../middleware/auth");
-const { uploadProfileImage } = require("../middleware/upload");
+const { handleProfileImageUpload } = require("../middleware/upload");
 const {
 	validateRegister,
 	validateLogin,
@@ -35,7 +35,7 @@ router.post("/login", validateLogin, login);
 router.post("/logout", logout);
 router.get("/me", protect, getMe);
 router.patch("/me/profile", protect, validateUpdateProfile, updateMyProfile);
-router.post("/me/profile-image", protect, uploadProfileImage.single("profileImage"), uploadMyProfileImage);
+router.post("/me/profile-image", protect, handleProfileImageUpload, uploadMyProfileImage);
 router.delete("/me/profile", protect, deleteMyProfile);
 
 // Password reset flow (public)

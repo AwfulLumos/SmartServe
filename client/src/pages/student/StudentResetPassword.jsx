@@ -8,6 +8,7 @@ export default function StudentResetPassword() {
   const navigate = useNavigate();
   const { state } = useLocation();
   const schoolId = state?.schoolId || "";
+  const email = state?.email || "";
   const code = state?.code || "";
 
   const [form, setForm] = useState({ password: "", confirmPassword: "" });
@@ -17,7 +18,7 @@ export default function StudentResetPassword() {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState(false);
 
-  if (!schoolId || !code) {
+  if ((!schoolId && !email) || !code) {
     navigate("/student/forgot-password");
     return null;
   }
@@ -36,6 +37,7 @@ export default function StudentResetPassword() {
     try {
       await api.post("/student/auth/reset-password", {
         schoolId,
+        email,
         code,
         password: form.password,
         confirmPassword: form.confirmPassword,

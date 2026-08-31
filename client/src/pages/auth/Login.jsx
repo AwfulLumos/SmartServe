@@ -194,12 +194,20 @@ export default function Login() {
             </button>
           </form>
 
-          <p className="text-center text-sm text-gray-500 mt-6">
-            Need an account?{" "}
-            <Link to="/register" className="text-brand font-semibold hover:underline">
-              Register here
-            </Link>
-          </p>
+          <div className="text-center text-sm text-gray-500 mt-6 space-y-1.5">
+            <p>
+              Need an account?{" "}
+              <Link to="/register" className="text-brand font-semibold hover:underline">
+                Register here
+              </Link>
+            </p>
+            <p>
+              Are you a student?{" "}
+              <Link to="/student/login" className="text-[#4a6741] font-semibold hover:underline">
+                Student Login
+              </Link>
+            </p>
+          </div>
         </div>
       </div>
     </div>

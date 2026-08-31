@@ -6,7 +6,7 @@ This document outlines the security updates implemented in **SMARTSERVE** to pro
 
 ## Overview of Security Features
 
-The security fortification strategy is divided into progressive phases. **Phase 1** (HTTP & Traffic Security), **Phase 2** (Data Validation & Sanitization), and **Phase 3** (Account Lockout & HttpOnly Cookies) have been fully integrated into the backend core.
+The security fortification strategy is divided into progressive phases. **Phase 1** (HTTP & Traffic Security), **Phase 2** (Data Validation & Sanitization), **Phase 3** (Account Lockout & HttpOnly Cookies), and **Phase 4** (File Upload Hardening & Magic Byte Validation) have all been fully integrated into the backend core.
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────┐
@@ -15,7 +15,7 @@ The security fortification strategy is divided into progressive phases. **Phase 
 │ Phase 1: Traffic & HTTP  │ Helmet Headers, NoSQL Sanitizer, Rate Limit  │
 │ Phase 2: Data & Payload  │ Express Validator, Schema Checks, Whitelist  │
 │ Phase 3: Auth & Session  │ Account Lockout (5 Fails), HttpOnly Cookies  │
-│ Phase 4 (Planned)        │ Deep MIME File Validation (Magic Bytes)      │
+│ Phase 4: File Uploads    │ Extension Whitelist & Magic Byte Binary Check│
 └──────────────────────────┴──────────────────────────────────────────────┘
 ```
 
@@ -86,6 +86,25 @@ The security fortification strategy is divided into progressive phases. **Phase 
 
 ---
 
+## Phase 4: File Upload Security & Magic Byte Validation
+
+### 1. Extension & MIME Type Whitelisting
+- **Middleware**: `server/middleware/upload.js`
+- **Allowed Extensions**: `.png`, `.jpg`, `.jpeg`, `.webp`, `.gif`
+- **Allowed MIME Types**: `image/png`, `image/jpeg`, `image/jpg`, `image/webp`, `image/gif`
+- **Size Limit**: Enforces a strict **2MB file size cap**. Exceeding file sizes returns structured `400 Bad Request` JSON responses instead of crashing the server.
+
+### 2. Binary Magic Byte Verification
+- **Purpose**: Prevents malicious executable scripts (e.g. `.php`, `.exe`, `.js`) disguised as images by changing their extension.
+- **Header Bytes Checked**:
+  - **PNG**: `89 50 4E 47`
+  - **JPEG**: `FF D8 FF`
+  - **GIF**: `47 49 46 38` ("GIF8")
+  - **WebP**: `52 49 46 46` ... `57 45 42 50` ("RIFF" ... "WEBP")
+- **Behavior**: If the magic byte inspection fails, the file is immediately **unlinked/deleted from disk** and an HTTP `400` error is returned.
+
+---
+
 ## How to Run & Verify Security Setup
 
 1. **Start the Development Server**:
@@ -93,15 +112,10 @@ The security fortification strategy is divided into progressive phases. **Phase 
    npm run dev
    ```
 
-2. **Verify Account Lockout**:
+2. **Verify File Upload Protection**:
+   - Try uploading a `.txt` or `.exe` file renamed to `test.png`.
+   - The upload handler will detect the invalid magic bytes, immediately delete the uploaded file from disk, and return `400 Bad Request`.
+
+3. **Verify Account Lockout**:
    - Try logging into an account with an incorrect password 5 times in a row.
    - The 5th failed attempt will lock the account for 15 minutes.
-
-3. **Verify HttpOnly Cookie**:
-   - Log in via the API and inspect browser cookies for `token` / `student_token` set to `HttpOnly`.
-
----
-
-## Security Roadmap (Phase 4)
-
-- **Phase 4 (File Upload Hardening)**: Validate image magic numbers (header bytes) for profile picture uploads to prevent malicious executable files disguised as images.

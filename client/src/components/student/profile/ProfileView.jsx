@@ -1,6 +1,5 @@
 import React, { useState } from "react";
 import { useStudentAuth } from "../../../context/StudentAuthContext";
-import studentApi from "../../../utils/studentApi";
 import toast from "react-hot-toast";
 
 import ProfileMenuList from "./ProfileMenuList";
@@ -24,7 +23,7 @@ function resolveStudentImageUrl(profileImage) {
 }
 
 export default function ProfileView({ student, onClose, onLogout }) {
-  const { refreshStudent } = useStudentAuth();
+  const { updateProfile, updateProfilePhoto, changePassword, refreshStudent } = useStudentAuth();
   const [activeTab, setActiveTab] = useState("menu");
   const containerRef = React.useRef(null);
 
@@ -39,13 +38,16 @@ export default function ProfileView({ student, onClose, onLogout }) {
 
   const [editForm, setEditForm] = useState({
     fullName: student?.fullName ?? "",
-    yearLevel: student?.yearLevel ?? "",
-    course: student?.course ?? "",
-    contactNumber: student?.contactNumber ?? "",
+    email: student?.email ?? "",
+    gradeLevel: student?.gradeLevel ?? "",
+    section: student?.section ?? "",
+    jobTitle: student?.jobTitle ?? "",
+    department: student?.department ?? "",
   });
 
   const [passForm, setPassForm] = useState({
     currentPassword: "",
+    oldPassword: "",
     newPassword: "",
     confirmPassword: "",
   });
@@ -67,46 +69,54 @@ export default function ProfileView({ student, onClose, onLogout }) {
     }
   });
 
-  function handleSaveProfile(e) {
+  async function handleSaveProfile(e) {
     e.preventDefault();
     setSavingProfile(true);
-    studentApi
-      .put("/student/profile", editForm)
-      .then(() => {
-        toast.success("Profile updated!");
-        refreshStudent();
-      })
-      .catch((err) => toast.error(err.response?.data?.message || "Failed to update profile"))
-      .finally(() => setSavingProfile(false));
+    const result = await updateProfile(editForm);
+    setSavingProfile(false);
+
+    if (result.success) {
+      toast.success("Profile updated!");
+      refreshStudent();
+    } else {
+      toast.error(result.message || "Failed to update profile");
+    }
   }
 
-  function handleAvatarUpload(e) {
+  async function handlePhotoSelected(e) {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    if (file.size > 5 * 1024 * 1024) {
-      toast.error("File size must be under 5MB");
+    if (!file.type.startsWith("image/")) {
+      toast.error("Please choose a valid image file");
       return;
     }
 
-    const formData = new FormData();
-    formData.append("profileImage", file);
+    if (file.size > 2 * 1024 * 1024) {
+      toast.error("File size limit exceeded. Maximum image size is 2MB.");
+      return;
+    }
 
     setUploadingImage(true);
-    studentApi
-      .post("/student/avatar", formData, {
-        headers: { "Content-Type": "multipart/form-data" },
-      })
-      .then(() => {
-        toast.success("Avatar updated!");
-        refreshStudent();
-      })
-      .catch((err) => toast.error(err.response?.data?.message || "Failed to upload avatar"))
-      .finally(() => setUploadingImage(false));
+    const result = await updateProfilePhoto(file);
+    setUploadingImage(false);
+    if (e.target) e.target.value = "";
+
+    if (result.success) {
+      toast.success("Profile picture updated!");
+      refreshStudent();
+    } else {
+      toast.error(result.message || "Failed to upload photo");
+    }
   }
 
-  function handleChangePassword(e) {
+  async function handleChangePassword(e) {
     e.preventDefault();
+    const currentPw = passForm.currentPassword || passForm.oldPassword;
+    if (!currentPw) {
+      toast.error("Current password is required.");
+      return;
+    }
     if (passForm.newPassword !== passForm.confirmPassword) {
       toast.error("New passwords do not match!");
       return;
@@ -117,17 +127,19 @@ export default function ProfileView({ student, onClose, onLogout }) {
     }
 
     setChangingPass(true);
-    studentApi
-      .put("/student/password", {
-        currentPassword: passForm.currentPassword,
-        newPassword: passForm.newPassword,
-      })
-      .then(() => {
-        toast.success("Password changed successfully!");
-        setPassForm({ currentPassword: "", newPassword: "", confirmPassword: "" });
-      })
-      .catch((err) => toast.error(err.response?.data?.message || "Failed to change password"))
-      .finally(() => setChangingPass(false));
+    const result = await changePassword(
+      currentPw,
+      passForm.newPassword,
+      passForm.confirmPassword
+    );
+    setChangingPass(false);
+
+    if (result.success) {
+      toast.success(result.message || "Password changed successfully!");
+      setPassForm({ currentPassword: "", oldPassword: "", newPassword: "", confirmPassword: "" });
+    } else {
+      toast.error(result.message || "Failed to change password");
+    }
   }
 
   function handleDarkModeToggle() {
@@ -156,8 +168,8 @@ export default function ProfileView({ student, onClose, onLogout }) {
         <ProfileMenuList
           student={student}
           profileImageUrl={profileImageUrl}
-          uploadingImage={uploadingImage}
-          onAvatarUpload={handleAvatarUpload}
+          photoUploading={uploadingImage}
+          handlePhotoSelected={handlePhotoSelected}
           onSelectTab={setActiveTab}
           onClose={onClose}
           onLogout={onLogout}
@@ -196,3 +208,4 @@ export default function ProfileView({ student, onClose, onLogout }) {
     </div>
   );
 }
+

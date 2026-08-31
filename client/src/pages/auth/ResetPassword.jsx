@@ -68,12 +68,20 @@ export default function ResetPassword() {
           <p className="text-gray-500 text-sm">
             Your password has been updated successfully. You can now sign in with your new password.
           </p>
-          <Link
-            to="/login"
-            className="inline-block w-full bg-[#4a6741] hover:bg-[#3a5333] text-white font-semibold py-3.5 rounded-xl transition text-sm"
-          >
-            Back to Sign In
-          </Link>
+          <div className="space-y-3 pt-2">
+            <Link
+              to="/student/login"
+              className="inline-block w-full bg-[#4a6741] hover:bg-[#3a5333] text-white font-semibold py-3.5 rounded-xl transition text-sm text-center shadow-sm"
+            >
+              Sign In to Student Portal
+            </Link>
+            <Link
+              to="/login"
+              className="inline-block w-full bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold py-3 rounded-xl transition text-sm text-center"
+            >
+              Sign In to Staff / Admin Portal
+            </Link>
+          </div>
         </div>
       </div>
     );

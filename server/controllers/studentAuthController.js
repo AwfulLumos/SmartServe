@@ -224,18 +224,26 @@ exports.forgotPassword = async (req, res) => {
   try {
     const { schoolId, email } = req.body;
 
-    if (!schoolId || !email) {
-      return res.status(400).json({ message: "School ID and email are required" });
+    if (!schoolId && !email) {
+      return res.status(400).json({ message: "Please provide your Email or School ID" });
     }
 
-    const student = await Student.findOne({
-      schoolId: schoolId.toUpperCase().trim(),
-      email: email.toLowerCase().trim(),
-    });
+    const query = {};
+    if (schoolId && String(schoolId).trim()) {
+      query.schoolId = String(schoolId).toUpperCase().trim();
+    }
+    if (email && String(email).trim()) {
+      query.email = String(email).toLowerCase().trim();
+    }
 
-    // Always 200 to prevent enumeration
+    const student = await Student.findOne(query);
+
     if (!student) {
-      return res.json({ message: "If that School ID and email match an account, a reset link has been sent." });
+      return res.status(404).json({ message: "No student account found matching your input" });
+    }
+
+    if (!student.email) {
+      return res.status(400).json({ message: "This student account does not have a registered email address. Please contact an administrator." });
     }
 
     const code = String(Math.floor(100000 + crypto.randomInt(900000)));
@@ -245,9 +253,10 @@ exports.forgotPassword = async (req, res) => {
     student.resetCodeExpiry = expiry;
     await student.save({ validateBeforeSave: false });
 
+    console.log(`Processing password reset request for Student (${student.schoolId}): ${student.email}`);
     await sendResetCode(student.email, code);
 
-    res.json({ message: "If that School ID and email match an account, a reset link has been sent." });
+    res.json({ message: `A 6-digit reset code has been sent to ${student.email}` });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -256,16 +265,19 @@ exports.forgotPassword = async (req, res) => {
 // POST /api/student/auth/verify-reset-code
 exports.verifyResetCode = async (req, res) => {
   try {
-    const { schoolId, code } = req.body;
-    if (!schoolId || !code) {
-      return res.status(400).json({ message: "School ID and code are required" });
+    const { schoolId, email, code } = req.body;
+    if (!code || (!schoolId && !email)) {
+      return res.status(400).json({ message: "Code and School ID or Email are required" });
     }
 
-    const student = await Student.findOne({
-      schoolId: schoolId.toUpperCase().trim(),
+    const query = {
       resetCode: code,
       resetCodeExpiry: { $gt: new Date() },
-    });
+    };
+    if (schoolId && String(schoolId).trim()) query.schoolId = String(schoolId).toUpperCase().trim();
+    if (email && String(email).trim()) query.email = String(email).toLowerCase().trim();
+
+    const student = await Student.findOne(query);
 
     if (!student) {
       return res.status(400).json({ message: "Invalid or expired reset code" });
@@ -280,9 +292,9 @@ exports.verifyResetCode = async (req, res) => {
 // POST /api/student/auth/reset-password
 exports.resetPassword = async (req, res) => {
   try {
-    const { schoolId, code, password, confirmPassword } = req.body;
+    const { schoolId, email, code, password, confirmPassword } = req.body;
 
-    if (!schoolId || !code || !password) {
+    if ((!schoolId && !email) || !code || !password) {
       return res.status(400).json({ message: "All fields are required" });
     }
     if (password !== confirmPassword) {
@@ -292,11 +304,14 @@ exports.resetPassword = async (req, res) => {
       return res.status(400).json({ message: "Password must be at least 6 characters" });
     }
 
-    const student = await Student.findOne({
-      schoolId: schoolId.toUpperCase().trim(),
+    const query = {
       resetCode: code,
       resetCodeExpiry: { $gt: new Date() },
-    });
+    };
+    if (schoolId && String(schoolId).trim()) query.schoolId = String(schoolId).toUpperCase().trim();
+    if (email && String(email).trim()) query.email = String(email).toLowerCase().trim();
+
+    const student = await Student.findOne(query);
 
     if (!student) {
       return res.status(400).json({ message: "Invalid or expired reset code" });

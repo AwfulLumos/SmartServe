@@ -149,6 +149,12 @@ exports.validateResetPassword = [
     .trim()
     .notEmpty()
     .withMessage("Reset code is required"),
+  (req, res, next) => {
+    if (!req.body.newPassword && req.body.password) {
+      req.body.newPassword = req.body.password;
+    }
+    next();
+  },
   body("newPassword")
     .notEmpty()
     .withMessage("New password is required")

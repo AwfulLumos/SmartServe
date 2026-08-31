@@ -17,6 +17,10 @@ export default function StudentForgotPassword() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
+    if (!form.schoolId.trim() && !form.email.trim()) {
+      setError("Please enter your School ID or Email address.");
+      return;
+    }
     setLoading(true);
     try {
       await api.post("/student/auth/forgot-password", form);
@@ -54,7 +58,7 @@ export default function StudentForgotPassword() {
           Forgot Password?
         </h2>
         <p className="text-gray-500 text-sm text-center mb-6">
-          No worries, we'll help you reset it
+          Enter your School ID or Email address to receive a 6-digit code
         </p>
 
         {error && (
@@ -67,7 +71,7 @@ export default function StudentForgotPassword() {
           {/* School ID */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1.5">
-              School ID
+              School ID <span className="text-gray-400 font-normal">(optional if email is provided)</span>
             </label>
             <div className="relative">
               <MdTag className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 text-lg" />
@@ -76,8 +80,7 @@ export default function StudentForgotPassword() {
                 name="schoolId"
                 value={form.schoolId}
                 onChange={handleChange}
-                placeholder="STU-2024-001"
-                required
+                placeholder="e.g. STU-4076-230"
                 autoCapitalize="characters"
                 className="w-full pl-11 pr-4 py-3.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#4a6741]/30 focus:border-[#4a6741] transition bg-white"
               />
@@ -87,7 +90,7 @@ export default function StudentForgotPassword() {
           {/* Email */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1.5">
-              Email Address
+              Email Address <span className="text-gray-400 font-normal">(optional if School ID is provided)</span>
             </label>
             <div className="relative">
               <IoMail className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 text-lg" />
@@ -96,8 +99,7 @@ export default function StudentForgotPassword() {
                 name="email"
                 value={form.email}
                 onChange={handleChange}
-                placeholder="your.email@school.edu"
-                required
+                placeholder="your.email@gmail.com"
                 className="w-full pl-11 pr-4 py-3.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#4a6741]/30 focus:border-[#4a6741] transition bg-white"
               />
             </div>
