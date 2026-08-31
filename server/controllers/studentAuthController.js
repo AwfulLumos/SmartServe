@@ -45,13 +45,14 @@ const removeLocalUpload = (fileUrl) => {
 // POST /api/student/auth/login
 exports.login = async (req, res) => {
   try {
-    const { schoolId, password } = req.body;
+    const rawId = req.body.schoolId || req.body.identifier;
+    const { password } = req.body;
 
-    if (!schoolId || !password) {
+    if (!rawId || !password) {
       return res.status(400).json({ message: "School ID and password are required" });
     }
 
-    const student = await Student.findOne({ schoolId: schoolId.toUpperCase().trim() });
+    const student = await Student.findOne({ schoolId: String(rawId).toUpperCase().trim() });
     if (!student) {
       return res.status(401).json({ message: "Invalid School ID or password" });
     }

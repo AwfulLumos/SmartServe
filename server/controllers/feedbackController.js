@@ -155,10 +155,11 @@ exports.updateFeedbackStatus = async (req, res) => {
 
       // Notify student via socket & push notification
       if (feedback.student) {
+        const studentIdStr = (feedback.student._id || feedback.student).toString();
         const { pushNotification } = require("./notificationController");
         pushNotification({
           recipientType: "student",
-          recipientId: feedback.student.toString(),
+          recipientId: studentIdStr,
           type: "order_status",
           title: "Feedback Response Received",
           body: `Admin replied: "${adminResponse.trim().slice(0, 80)}${adminResponse.trim().length > 80 ? "..." : ""}"`,

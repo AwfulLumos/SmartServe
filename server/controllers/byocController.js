@@ -27,7 +27,7 @@ exports.getByocRecords = async (req, res) => {
     const allRecords = await ByocRecord.find({});
     const ecoPointsToday = allRecords
       .filter((r) => new Date(r.createdAt) >= today)
-      .reduce((sum, r) => sum + r.ecoPoints, 0);
+      .reduce((sum, r) => sum + (r.ecoPoints || 5), 0);
     const containersSavedMonth = allRecords.filter(
       (r) => new Date(r.createdAt) >= monthStart
     ).length;
