@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import studentApi from "../../../utils/studentApi";
+import { fetchStudentMenuSWR, subscribeMenuCache } from "../../../utils/menuCache";
 import { SkeletonCardGrid } from "../../SkeletonLoader";
 import {
   IoSearchOutline,
@@ -13,20 +13,22 @@ const CATEGORIES = ["All", "Morning", "Lunch", "Snacks", "Beverages", "Others"];
 
 export default function MenuView({ cart, setCart, onOpenCart }) {
   const [items, setItems] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(!items.length);
   const [category, setCategory] = useState("All");
   const [search, setSearch] = useState("");
   const [detailItem, setDetailItem] = useState(null);
 
   useEffect(() => {
-    studentApi
-      .get("/menu/active")
-      .then((res) => {
-        const fetchedItems = Array.isArray(res.data) ? res.data : (res.data?.items ?? []);
-        setItems(fetchedItems);
-      })
-      .catch(() => setItems([]))
-      .finally(() => setLoading(false));
+    fetchStudentMenuSWR(
+      (data) => setItems(data),
+      (isLoading) => setLoading(isLoading)
+    );
+
+    const unsubscribe = subscribeMenuCache(() => {
+      fetchStudentMenuSWR((data) => setItems(data));
+    });
+
+    return () => unsubscribe();
   }, []);
 
   const safeItems = Array.isArray(items) ? items : [];
@@ -72,17 +74,17 @@ export default function MenuView({ cart, setCart, onOpenCart }) {
   }
 
   return (
-    <div className="flex-1 flex flex-col min-h-0 bg-gray-50 font-sans relative">
+    <div className="flex-1 flex flex-col min-h-0 bg-gray-50 dark:bg-[#0f170a] font-sans relative">
       {/* Search & Categories Header */}
-      <div className="px-4 pt-4 pb-2 bg-gray-50 flex-shrink-0">
+      <div className="px-4 pt-4 pb-2 bg-gray-50 dark:bg-[#0f170a] flex-shrink-0">
         <div className="relative mb-3">
-          <IoSearchOutline className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 text-lg" />
+          <IoSearchOutline className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 dark:text-gray-400 text-lg" />
           <input
             type="text"
             placeholder="Search food, drinks..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="w-full bg-white rounded-2xl pl-10 pr-4 py-3 text-sm border border-gray-200 focus:border-[#4a6741] outline-none shadow-xs text-gray-800 placeholder-gray-400"
+            className="w-full bg-white dark:bg-[#1a2416] rounded-2xl pl-10 pr-4 py-3 text-sm border border-gray-200 dark:border-[#2b3924] focus:border-[#4a6741] dark:focus:border-[#8ebd7e] outline-none shadow-xs text-gray-800 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-400"
           />
         </div>
 
@@ -93,8 +95,8 @@ export default function MenuView({ cart, setCart, onOpenCart }) {
               key={cat}
               onClick={() => setCategory(cat)}
               className={`px-4 py-2 rounded-full text-xs font-bold whitespace-nowrap transition ${category === cat
-                  ? "bg-[#4a6741] text-white shadow-sm"
-                  : "bg-white text-gray-600 border border-gray-200"
+                ? "bg-[#4a6741] dark:bg-[#8ebd7e] text-white dark:text-[#1a2416] shadow-sm"
+                : "bg-white dark:bg-[#1a2416] text-gray-600 dark:text-gray-300 border border-gray-200 dark:border-[#2b3924]"
                 }`}
             >
               {cat}
@@ -108,7 +110,7 @@ export default function MenuView({ cart, setCart, onOpenCart }) {
         {loading ? (
           <SkeletonCardGrid count={6} />
         ) : filtered.length === 0 ? (
-          <div className="text-center py-16 text-gray-400 text-sm">No items found</div>
+          <div className="text-center py-16 text-gray-400 dark:text-gray-400 text-sm">No items found</div>
         ) : (
           <div className="grid grid-cols-2 gap-3">
             {filtered.map((item) => {
@@ -118,7 +120,7 @@ export default function MenuView({ cart, setCart, onOpenCart }) {
                 <div
                   key={item._id}
                   onClick={() => setDetailItem(item)}
-                  className="bg-white rounded-2xl border border-gray-100 shadow-sm p-3 flex flex-col justify-between cursor-pointer hover:border-[#4a6741]/30 transition"
+                  className="bg-white dark:bg-[#1a2416] rounded-2xl border border-gray-100 dark:border-[#2b3924] shadow-sm p-3 flex flex-col justify-between cursor-pointer hover:border-[#4a6741]/30 dark:hover:border-[#8ebd7e]/30 transition"
                 >
                   <div>
                     {itemImage ? (
@@ -128,23 +130,23 @@ export default function MenuView({ cart, setCart, onOpenCart }) {
                         className="w-full h-24 object-cover rounded-xl mb-2"
                       />
                     ) : (
-                      <div className="w-full h-24 bg-[#d7ecc8]/50 rounded-xl mb-2 flex items-center justify-center text-gray-400">
-                        <IoRestaurantOutline className="text-3xl text-[#4a6741]/50" />
+                      <div className="w-full h-24 bg-[#d7ecc8]/50 dark:bg-[#24301f] rounded-xl mb-2 flex items-center justify-center text-gray-400">
+                        <IoRestaurantOutline className="text-3xl text-[#4a6741]/50 dark:text-[#8ebd7e]/50" />
                       </div>
                     )}
-                    <span className="text-[10px] font-bold text-[#4a6741] uppercase tracking-wider">
+                    <span className="text-[10px] font-bold text-[#4a6741] dark:text-[#8ebd7e] uppercase tracking-wider">
                       {item.category}
                     </span>
-                    <p className="font-bold text-gray-800 text-sm leading-snug line-clamp-1 mt-0.5">
+                    <p className="font-bold text-gray-800 dark:text-gray-100 text-sm leading-snug line-clamp-1 mt-0.5">
                       {item.name}
                     </p>
                     {item.description && (
-                      <p className="text-xs text-gray-400 mt-0.5 line-clamp-2">{item.description}</p>
+                      <p className="text-xs text-gray-400 dark:text-gray-400 mt-0.5 line-clamp-2">{item.description}</p>
                     )}
                   </div>
 
-                  <div className="flex items-center justify-between mt-3 pt-2 border-t border-gray-50">
-                    <span className="font-extrabold text-[#4a6741] text-base">₱{item.price}</span>
+                  <div className="flex items-center justify-between mt-3 pt-2 border-t border-gray-50 dark:border-[#2b3924]">
+                    <span className="font-extrabold text-[#4a6741] dark:text-[#8ebd7e] text-base">₱{item.price}</span>
 
                     {qty === 0 ? (
                       <button
@@ -152,27 +154,27 @@ export default function MenuView({ cart, setCart, onOpenCart }) {
                           e.stopPropagation();
                           addItem(item);
                         }}
-                        className="w-8 h-8 rounded-xl bg-[#4a6741] text-white flex items-center justify-center hover:bg-[#3a5333] transition"
+                        className="w-8 h-8 rounded-xl bg-[#4a6741] dark:bg-[#8ebd7e] text-white dark:text-[#1a2416] flex items-center justify-center hover:bg-[#3a5333] dark:hover:bg-[#a3d194] transition"
                       >
                         <IoAddOutline className="text-lg" />
                       </button>
                     ) : (
                       <div
                         onClick={(e) => e.stopPropagation()}
-                        className="flex items-center gap-1.5 bg-[#f0f7ec] rounded-xl px-1.5 py-1"
+                        className="flex items-center gap-1.5 bg-[#f0f7ec] dark:bg-[#24301f] rounded-xl px-1.5 py-1"
                       >
                         <button
                           onClick={() => removeItem(item._id)}
-                          className="w-6 h-6 rounded-lg bg-white text-[#4a6741] flex items-center justify-center shadow-xs text-xs"
+                          className="w-6 h-6 rounded-lg bg-white dark:bg-[#1a2416] text-[#4a6741] dark:text-[#8ebd7e] flex items-center justify-center shadow-xs text-xs"
                         >
                           <IoRemoveOutline />
                         </button>
-                        <span className="text-xs font-bold text-[#4a6741] min-w-[12px] text-center">
+                        <span className="text-xs font-bold text-[#4a6741] dark:text-[#8ebd7e] min-w-[12px] text-center">
                           {qty}
                         </span>
                         <button
                           onClick={() => addItem(item)}
-                          className="w-6 h-6 rounded-lg bg-[#4a6741] text-white flex items-center justify-center shadow-xs text-xs"
+                          className="w-6 h-6 rounded-lg bg-[#4a6741] dark:bg-[#8ebd7e] text-white dark:text-[#1a2416] flex items-center justify-center shadow-xs text-xs"
                         >
                           <IoAddOutline />
                         </button>
@@ -191,10 +193,10 @@ export default function MenuView({ cart, setCart, onOpenCart }) {
         <div className="absolute bottom-4 left-4 right-4 z-20">
           <button
             onClick={onOpenCart}
-            className="w-full bg-[#4a6741] hover:bg-[#3a5333] text-white font-extrabold py-3.5 px-5 rounded-2xl flex items-center justify-between shadow-xl transition active:scale-[0.99]"
+            className="w-full bg-[#4a6741] dark:bg-[#8ebd7e] hover:bg-[#3a5333] text-white dark:text-[#1a2416] font-extrabold py-3.5 px-5 rounded-2xl flex items-center justify-between shadow-xl transition active:scale-[0.99]"
           >
             <div className="flex items-center gap-2">
-              <div className="w-7 h-7 rounded-full bg-white/20 flex items-center justify-center text-xs">
+              <div className="w-7 h-7 rounded-full bg-white/20 dark:bg-black/20 flex items-center justify-center text-xs">
                 {cartTotalCount}
               </div>
               <span className="text-sm">View Cart</span>
@@ -209,7 +211,7 @@ export default function MenuView({ cart, setCart, onOpenCart }) {
       {/* Item Detail Modal Sheet */}
       {detailItem && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs animate-in fade-in duration-200">
-          <div className="bg-white rounded-3xl w-full max-w-sm overflow-hidden shadow-2xl animate-in zoom-in-95 duration-200 border border-gray-100">
+          <div className="bg-white dark:bg-[#1a2416] rounded-3xl w-full max-w-sm overflow-hidden shadow-2xl animate-in zoom-in-95 duration-200 border border-gray-100 dark:border-[#2b3924]">
             <div className="relative">
               {(detailItem.image || detailItem.imageUrl) ? (
                 <img
@@ -218,8 +220,8 @@ export default function MenuView({ cart, setCart, onOpenCart }) {
                   className="w-full h-56 object-cover"
                 />
               ) : (
-                <div className="w-full h-56 bg-[#d7ecc8]/50 flex items-center justify-center">
-                  <IoRestaurantOutline className="text-6xl text-[#4a6741]/40" />
+                <div className="w-full h-56 bg-[#d7ecc8]/50 dark:bg-[#24301f] flex items-center justify-center">
+                  <IoRestaurantOutline className="text-6xl text-[#4a6741]/40 dark:text-[#8ebd7e]/40" />
                 </div>
               )}
               <button
@@ -232,25 +234,25 @@ export default function MenuView({ cart, setCart, onOpenCart }) {
 
             <div className="p-6">
               <div className="flex items-center justify-between mb-1">
-                <span className="text-xs font-extrabold text-[#4a6741] uppercase tracking-wider bg-[#f0f7ec] px-2.5 py-1 rounded-full">
+                <span className="text-xs font-extrabold text-[#4a6741] dark:text-[#8ebd7e] uppercase tracking-wider bg-[#f0f7ec] dark:bg-[#24301f] px-2.5 py-1 rounded-full">
                   {detailItem.category}
                 </span>
-                <span className="text-2xl font-black text-[#4a6741]">
+                <span className="text-2xl font-black text-[#4a6741] dark:text-[#8ebd7e]">
                   ₱{Number(detailItem.price).toFixed(2)}
                 </span>
               </div>
 
-              <h3 className="text-xl font-extrabold text-gray-900 mt-2">{detailItem.name}</h3>
+              <h3 className="text-xl font-extrabold text-gray-900 dark:text-gray-100 mt-2">{detailItem.name}</h3>
 
               {detailItem.description ? (
-                <p className="text-sm text-gray-500 mt-2 leading-relaxed">{detailItem.description}</p>
+                <p className="text-sm text-gray-500 dark:text-gray-400 mt-2 leading-relaxed">{detailItem.description}</p>
               ) : (
-                <p className="text-xs text-gray-400 mt-2 italic">Freshly prepared in our canteen kitchen.</p>
+                <p className="text-xs text-gray-400 dark:text-gray-400 mt-2 italic">Freshly prepared in our canteen kitchen.</p>
               )}
 
-              <div className="mt-6 pt-4 border-t border-gray-100 flex items-center justify-between gap-3">
+              <div className="mt-6 pt-4 border-t border-gray-100 dark:border-[#2b3924] flex items-center justify-between gap-3">
                 {getCartQty(detailItem._id) > 0 && (
-                  <span className="text-xs font-bold bg-[#f0f7ec] text-[#4a6741] px-3 py-1.5 rounded-xl">
+                  <span className="text-xs font-bold bg-[#f0f7ec] dark:bg-[#24301f] text-[#4a6741] dark:text-[#8ebd7e] px-3 py-1.5 rounded-xl">
                     {getCartQty(detailItem._id)} in cart
                   </span>
                 )}
@@ -260,7 +262,7 @@ export default function MenuView({ cart, setCart, onOpenCart }) {
                     addItem(detailItem);
                     setDetailItem(null);
                   }}
-                  className="flex-1 py-3.5 rounded-2xl bg-[#4a6741] hover:bg-[#3a5333] text-white font-extrabold text-sm shadow-lg shadow-[#4a6741]/20 transition flex items-center justify-center gap-2"
+                  className="flex-1 py-3.5 rounded-2xl bg-[#4a6741] dark:bg-[#8ebd7e] hover:bg-[#3a5333] dark:hover:bg-[#a3d194] text-white dark:text-[#1a2416] font-extrabold text-sm shadow-lg shadow-[#4a6741]/20 transition flex items-center justify-center gap-2"
                 >
                   <IoAddOutline className="text-lg" />
                   <span>Add to Cart</span>

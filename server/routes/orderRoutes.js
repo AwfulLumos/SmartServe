@@ -2,6 +2,7 @@ const express = require("express");
 const router = express.Router();
 const { protect, restrictTo } = require("../middleware/auth");
 const { protectStudent } = require("../middleware/studentAuth");
+const { actionLimiter } = require("../middleware/rateLimiter");
 const { createOrder, getStudentOrders, getOrders, updateOrderStatus, bulkUpdateOrderStatus } = require("../controllers/orderController");
 
 // Admin / staff routes
@@ -10,7 +11,7 @@ router.patch("/bulk-status", protect, restrictTo("admin", "staff"), bulkUpdateOr
 router.patch("/:id/status", protect, restrictTo("admin", "staff"), updateOrderStatus);
 
 // Student routes
-router.post("/", protectStudent, createOrder);
+router.post("/", protectStudent, actionLimiter, createOrder);
 router.get("/mine", protectStudent, getStudentOrders);
 
 module.exports = router;

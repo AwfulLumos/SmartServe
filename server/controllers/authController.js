@@ -5,7 +5,7 @@ const User = require("../models/User");
 const logAudit = require("../utils/auditLogger");
 
 const generateToken = (id) =>
-  jwt.sign({ id }, process.env.JWT_SECRET, { expiresIn: "7d" });
+  jwt.sign({ id }, process.env.JWT_SECRET, { expiresIn: "12h" });
 
 // POST /api/auth/register
 exports.register = async (req, res) => {
@@ -112,12 +112,12 @@ exports.login = async (req, res) => {
 
     const token = generateToken(user._id);
 
-    // Set secure HttpOnly cookie
+    // Set secure HttpOnly cookie (12 hours)
     res.cookie("token", token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
       sameSite: "lax",
-      maxAge: 7 * 24 * 60 * 60 * 1000,
+      maxAge: 12 * 60 * 60 * 1000,
     });
 
     res.json({
@@ -240,7 +240,7 @@ exports.uploadMyProfileImage = async (req, res) => {
       const relativeFile = user.profileImageUrl.replace(/^\//, "");
       const previousPath = path.join(__dirname, "..", relativeFile);
       if (fs.existsSync(previousPath)) {
-        fs.unlink(previousPath, () => {});
+        fs.unlink(previousPath, () => { });
       }
     }
 
