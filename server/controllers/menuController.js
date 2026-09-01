@@ -4,7 +4,9 @@ const logAudit = require("../utils/auditLogger");
 // GET /api/menu/active  (student-accessible – only active items)
 exports.getActiveMenuItems = async (req, res) => {
   try {
-    const items = await MenuItem.find({ isActive: true }).sort({ category: 1, createdAt: -1 });
+    const items = await MenuItem.find({ isActive: { $ne: false } })
+      .sort({ category: 1, createdAt: -1 })
+      .lean();
     res.json(items);
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -14,7 +16,9 @@ exports.getActiveMenuItems = async (req, res) => {
 // GET /api/menu
 exports.getMenuItems = async (req, res) => {
   try {
-    const items = await MenuItem.find({}).sort({ category: 1, createdAt: -1 });
+    const items = await MenuItem.find({})
+      .sort({ category: 1, createdAt: -1 })
+      .lean();
     res.json(items);
   } catch (error) {
     res.status(500).json({ message: error.message });

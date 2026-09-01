@@ -86,6 +86,18 @@ export default function StudentDashboard() {
   const [logoutProgress, setLogoutProgress] = useState(0);
   const [logoutCountdown, setLogoutCountdown] = useState(3);
 
+  // Restore theme on mount
+  useEffect(() => {
+    const isDark =
+      localStorage.getItem("smartserve_dark_mode") === "true" ||
+      localStorage.getItem("smartserve_theme") === "dark";
+    if (isDark) {
+      document.documentElement.classList.add("dark");
+    } else {
+      document.documentElement.classList.remove("dark");
+    }
+  }, []);
+
   // Trigger 3-second login loading screen ONLY when just logged in
   useEffect(() => {
     const justLoggedIn = sessionStorage.getItem("smartserve_student_just_logged_in");

@@ -17,17 +17,21 @@ const api = axios.create({
 // Request interceptor: automatically attach JWT token from localStorage to requests
 api.interceptors.request.use((config) => {
   try {
-    // Retrieve stored user data from localStorage
     const stored = localStorage.getItem("smartserve_user");
     if (stored) {
-      // Parse the stored JSON and extract the token
       const { token } = JSON.parse(stored);
-      if (token) config.headers["Authorization"] = `Bearer ${token}`;
+      if (token) {
+        if (config.headers?.set) {
+          config.headers.set("Authorization", `Bearer ${token}`);
+        } else {
+          config.headers = config.headers || {};
+          config.headers["Authorization"] = `Bearer ${token}`;
+        }
+      }
     }
   } catch {
-    // Silently ignore any parsing errors (e.g., invalid JSON)
+    // Silently ignore any parsing errors
   }
-  // Return the modified config
   return config;
 });
 

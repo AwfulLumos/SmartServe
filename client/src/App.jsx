@@ -133,8 +133,10 @@ function AppNotificationsGate({ children }) {
 
 function App() {
   useEffect(() => {
-    const theme = localStorage.getItem("smartserve_theme");
-    if (theme === "dark") {
+    const isDark =
+      localStorage.getItem("smartserve_dark_mode") === "true" ||
+      localStorage.getItem("smartserve_theme") === "dark";
+    if (isDark) {
       document.documentElement.classList.add("dark");
     } else {
       document.documentElement.classList.remove("dark");

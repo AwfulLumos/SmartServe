@@ -18,7 +18,7 @@ const protectStudent = async (req, res, next) => {
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
-    if (decoded.type !== "student") {
+    if (decoded.type && decoded.type !== "student") {
       return res.status(401).json({ message: "Not authorized" });
     }
 

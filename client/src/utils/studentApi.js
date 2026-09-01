@@ -25,13 +25,13 @@ const studentApi = axios.create({
   // Example:
   // https://smartserve-main-2.onrender.com/api
   baseURL: API_URL,
-    // Tells backend that request data is JSON format
-    //
-    // Example:
-    // {
-    //   "name": "Kimberly",
-    //   "items": [...]
-    // }
+  // Tells backend that request data is JSON format
+  //
+  // Example:
+  // {
+  //   "name": "Kimberly",
+  //   "items": [...]
+  // }
   headers: { "Content-Type": "application/json" },
 });
 
@@ -55,36 +55,21 @@ const studentApi = axios.create({
 // cannot identify the logged-in student.
 studentApi.interceptors.request.use((config) => {
   try {
-    // Get saved student login data
-    // from browser localStorage
-    //
-    // Example localStorage data:
-    //
-    // {
-    //   token: "...",
-    //   student: {...}
-    // }
     const stored = localStorage.getItem("smartserve_student");
-    // If login data exists
     if (stored) {
-        // Convert JSON string into JavaScript object
       const { token } = JSON.parse(stored);
-              // Attach Authorization header
-        //
-        // Example:
-        // Authorization: Bearer eyJhbGc...
-        //
-        // Backend uses this token
-        // to verify student identity.
-      if (token) config.headers["Authorization"] = `Bearer ${token}`;
+      if (token) {
+        if (config.headers?.set) {
+          config.headers.set("Authorization", `Bearer ${token}`);
+        } else {
+          config.headers = config.headers || {};
+          config.headers["Authorization"] = `Bearer ${token}`;
+        }
+      }
     }
   } catch {
-    //gnore JSON parsing errors
-    //
-    // Prevents frontend from crashing
-    // if localStorage data is corrupted/invalid.
+    // Ignore JSON parsing errors
   }
-    //return updated request configuration
   return config;
 });
 

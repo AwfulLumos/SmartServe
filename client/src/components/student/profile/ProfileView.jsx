@@ -146,6 +146,7 @@ export default function ProfileView({ student, onClose, onLogout }) {
     const nextVal = !darkMode;
     setDarkMode(nextVal);
     localStorage.setItem("smartserve_dark_mode", String(nextVal));
+    localStorage.setItem("smartserve_theme", nextVal ? "dark" : "light");
     if (nextVal) {
       document.documentElement.classList.add("dark");
     } else {
