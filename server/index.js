@@ -42,24 +42,9 @@ app.use(
 // 2. Prevent NoSQL Injection Attacks
 app.use(mongoSanitize());
 
-// 3. Rate Limiting
-const apiLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: process.env.NODE_ENV === "production" ? 300 : 1000, // Max requests per 15 minutes per IP
-  standardHeaders: true,
-  legacyHeaders: false,
-  message: { message: "Too many requests from this IP, please try again after 15 minutes." },
-});
+const { authLimiter, apiLimiter } = require("./middleware/rateLimiter");
 
-const authLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: process.env.NODE_ENV === "production" ? 15 : 100, // 15 in production, 100 in dev for testing
-  standardHeaders: true,
-  legacyHeaders: false,
-  message: { message: "Too many authentication attempts. Please try again after 15 minutes." },
-});
-
-// Apply rate limiters to API and authentication routes
+// 3. Rate Limiting (Dev-bypassed, Tiered & User-Aware in Production)
 app.use("/api/", apiLimiter);
 app.use("/api/auth/login", authLimiter);
 app.use("/api/student/auth/login", authLimiter);

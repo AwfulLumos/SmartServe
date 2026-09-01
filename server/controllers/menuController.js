@@ -1,3 +1,5 @@
+const fs = require("fs");
+const path = require("path");
 const MenuItem = require("../models/MenuItem");
 const logAudit = require("../utils/auditLogger");
 
@@ -14,6 +16,17 @@ const invalidateMenuCache = () => {
   allMenuCache = null;
   activeCacheTime = 0;
   allCacheTime = 0;
+};
+
+const removeLocalUpload = (fileUrl) => {
+  if (!fileUrl || typeof fileUrl !== "string" || !fileUrl.startsWith("/uploads/menu/")) return;
+  const filename = path.basename(fileUrl);
+  const diskPath = path.join(__dirname, "..", "uploads", "menu", filename);
+  if (fs.existsSync(diskPath)) {
+    try {
+      fs.unlinkSync(diskPath);
+    } catch { /* ignore */ }
+  }
 };
 
 // GET /api/menu/active  (student-accessible – only active items)
@@ -59,11 +72,17 @@ exports.getMenuItems = async (req, res) => {
 // POST /api/menu
 exports.createMenuItem = async (req, res) => {
   try {
-    const { name, category, price, image } = req.body;
+    const { name, category, price } = req.body;
+    let imageUrl = req.body.image || "";
+
+    if (req.file) {
+      imageUrl = `/uploads/menu/${req.file.filename}`;
+    }
+
     if (!name || !category || price === undefined) {
       return res.status(400).json({ message: "Name, category and price are required" });
     }
-    const item = await MenuItem.create({ name, category, price, image: image || "" });
+    const item = await MenuItem.create({ name, category, price: Number(price), image: imageUrl });
 
     invalidateMenuCache();
 
@@ -87,15 +106,29 @@ exports.createMenuItem = async (req, res) => {
 exports.updateMenuItem = async (req, res) => {
   try {
     const { name, category, price, image } = req.body;
-    const updateData = { name, category, price };
-    if (image !== undefined) updateData.image = image;
+    const updateData = {};
+    if (name) updateData.name = name;
+    if (category) updateData.category = category;
+    if (price !== undefined) updateData.price = Number(price);
+
+    const existingItem = await MenuItem.findById(req.params.id);
+    if (!existingItem) return res.status(404).json({ message: "Menu item not found" });
+
+    if (req.file) {
+      removeLocalUpload(existingItem.image);
+      updateData.image = `/uploads/menu/${req.file.filename}`;
+    } else if (image !== undefined) {
+      if (image === "" && existingItem.image) {
+        removeLocalUpload(existingItem.image);
+      }
+      updateData.image = image;
+    }
 
     const item = await MenuItem.findByIdAndUpdate(
       req.params.id,
       updateData,
       { new: true, runValidators: true }
     );
-    if (!item) return res.status(404).json({ message: "Menu item not found" });
 
     invalidateMenuCache();
 
@@ -147,6 +180,7 @@ exports.deleteMenuItem = async (req, res) => {
     const item = await MenuItem.findByIdAndDelete(req.params.id);
     if (!item) return res.status(404).json({ message: "Menu item not found" });
 
+    removeLocalUpload(item.image);
     invalidateMenuCache();
 
     logAudit({

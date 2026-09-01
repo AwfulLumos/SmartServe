@@ -13,13 +13,14 @@ import {
   IoCloudUploadOutline,
 } from "react-icons/io5";
 import api from "../../../utils/api";
+import { fetchAdminMenuSWR, invalidateClientMenuCache, subscribeMenuCache } from "../../../utils/menuCache";
 import { SkeletonTable } from "../../SkeletonLoader";
 import CustomFilterSelect from "./CustomFilterSelect";
 import MenuModal from "./MenuModal";
 import MenuInput from "./MenuInput";
 
 const MENU_CATEGORIES = ["Morning", "Lunch", "Snacks", "Beverages", "Others"];
-const emptyMenuForm = { name: "", category: "", price: "", image: "" };
+const emptyMenuForm = { name: "", category: "", price: "", image: "", imageFile: null, imagePreview: "" };
 
 export default function MenuTab() {
   const [items, setItems] = useState([]);
@@ -37,15 +38,23 @@ export default function MenuTab() {
   const [deleting, setDeleting] = useState(false);
   const [viewImageItem, setViewImageItem] = useState(null);
 
-  const fetchItems = useCallback(async () => {
-    setLoading(true);
-    try {
-      const { data } = await api.get("/menu");
-      setItems(data);
-    } catch { /* */ } finally { setLoading(false); }
+  const loadMenuData = useCallback((force = false) => {
+    if (force) invalidateClientMenuCache();
+    fetchAdminMenuSWR(
+      (data) => setItems(data),
+      (isLoading) => setLoading(isLoading)
+    );
   }, []);
 
-  useEffect(() => { fetchItems(); }, [fetchItems]);
+  useEffect(() => {
+    loadMenuData();
+    const unsubscribe = subscribeMenuCache(() => {
+      fetchAdminMenuSWR((data) => setItems(data));
+    });
+    return () => unsubscribe();
+  }, [loadMenuData]);
+
+  const fetchItems = () => loadMenuData(true);
 
   const filteredItems = items.filter((item) => {
     const matchesSearch =
@@ -68,33 +77,8 @@ export default function MenuTab() {
       toast.error("Image file size should be 3MB or less");
       return;
     }
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const img = new Image();
-      img.onload = () => {
-        const canvas = document.createElement("canvas");
-        let width = img.width;
-        let height = img.height;
-        const maxDim = 500;
-        if (width > maxDim || height > maxDim) {
-          if (width > height) {
-            height = Math.round((height * maxDim) / width);
-            width = maxDim;
-          } else {
-            width = Math.round((width * maxDim) / height);
-            height = maxDim;
-          }
-        }
-        canvas.width = width;
-        canvas.height = height;
-        const ctx = canvas.getContext("2d");
-        ctx.drawImage(img, 0, 0, width, height);
-        const compressedBase64 = canvas.toDataURL("image/jpeg", 0.75);
-        setForm((p) => ({ ...p, image: compressedBase64 }));
-      };
-      img.src = event.target.result;
-    };
-    reader.readAsDataURL(file);
+    const previewUrl = URL.createObjectURL(file);
+    setForm((p) => ({ ...p, imageFile: file, imagePreview: previewUrl }));
   };
 
   const openAdd = () => {
@@ -102,7 +86,14 @@ export default function MenuTab() {
   };
   const openEdit = (item) => {
     setEditTarget(item);
-    setForm({ name: item.name, category: item.category, price: String(item.price), image: item.image || "" });
+    setForm({
+      name: item.name,
+      category: item.category,
+      price: String(item.price),
+      image: item.image || "",
+      imageFile: null,
+      imagePreview: item.image || "",
+    });
     setErrors({}); setApiError(""); setModalOpen(true);
   };
   const closeModal = () => { setModalOpen(false); setEditTarget(null); };
@@ -121,23 +112,53 @@ export default function MenuTab() {
     if (Object.keys(errs).length) { setErrors(errs); return; }
     setSubmitting(true);
     try {
-      const payload = { name: form.name.trim(), category: form.category, price: Number(form.price), image: form.image };
-      if (editTarget) await api.put(`/menu/${editTarget._id}`, payload);
-      else await api.post("/menu", payload);
-      closeModal(); fetchItems();
+      const formData = new FormData();
+      formData.append("name", form.name.trim());
+      formData.append("category", form.category);
+      formData.append("price", form.price);
+      if (form.imageFile) {
+        formData.append("imageFile", form.imageFile);
+      } else {
+        formData.append("image", form.image || "");
+      }
+
+      if (editTarget) {
+        await api.put(`/menu/${editTarget._id}`, formData, {
+          headers: { "Content-Type": "multipart/form-data" },
+        });
+      } else {
+        await api.post("/menu", formData, {
+          headers: { "Content-Type": "multipart/form-data" },
+        });
+      }
+      invalidateClientMenuCache();
+      closeModal();
+      loadMenuData(true);
     } catch (err) {
       setApiError(err.response?.data?.message || "Failed to save.");
     } finally { setSubmitting(false); }
   };
 
   const toggle = async (item) => {
-    try { await api.patch(`/menu/${item._id}/toggle`); fetchItems(); } catch { /* */ }
+    try {
+      await api.patch(`/menu/${item._id}/toggle`);
+      invalidateClientMenuCache();
+      loadMenuData(true);
+    } catch { /* */ }
   };
 
   const confirmDelete = async () => {
     setDeleting(true);
-    try { await api.delete(`/menu/${deleteTarget._id}`); setDeleteTarget(null); fetchItems(); }
-    catch { setDeleteTarget(null); } finally { setDeleting(false); }
+    try {
+      await api.delete(`/menu/${deleteTarget._id}`);
+      setDeleteTarget(null);
+      invalidateClientMenuCache();
+      loadMenuData(true);
+    } catch {
+      setDeleteTarget(null);
+    } finally {
+      setDeleting(false);
+    }
   };
 
   return (
@@ -361,12 +382,12 @@ export default function MenuTab() {
               <label className="block text-sm font-medium text-gray-700 mb-1.5">
                 Item Photo <span className="text-gray-400 font-normal">(Optional)</span>
               </label>
-              {form.image ? (
+              {(form.imagePreview || form.image) ? (
                 <div className="relative group w-full h-36 rounded-xl overflow-hidden border border-gray-200 bg-gray-50 flex items-center justify-center">
-                  <img src={form.image} alt="Preview" className="w-full h-full object-cover" />
+                  <img src={form.imagePreview || form.image} alt="Preview" className="w-full h-full object-cover" />
                   <button
                     type="button"
-                    onClick={() => setForm((p) => ({ ...p, image: "" }))}
+                    onClick={() => setForm((p) => ({ ...p, image: "", imageFile: null, imagePreview: "" }))}
                     className="absolute top-2 right-2 p-1.5 bg-red-500 hover:bg-red-600 text-white rounded-lg shadow-md transition"
                     title="Remove photo"
                   >

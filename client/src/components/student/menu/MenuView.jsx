@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import studentApi from "../../../utils/studentApi";
+import { fetchStudentMenuSWR, subscribeMenuCache } from "../../../utils/menuCache";
 import { SkeletonCardGrid } from "../../SkeletonLoader";
 import {
   IoSearchOutline,
@@ -13,20 +13,22 @@ const CATEGORIES = ["All", "Morning", "Lunch", "Snacks", "Beverages", "Others"];
 
 export default function MenuView({ cart, setCart, onOpenCart }) {
   const [items, setItems] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(!items.length);
   const [category, setCategory] = useState("All");
   const [search, setSearch] = useState("");
   const [detailItem, setDetailItem] = useState(null);
 
   useEffect(() => {
-    studentApi
-      .get("/menu/active")
-      .then((res) => {
-        const fetchedItems = Array.isArray(res.data) ? res.data : (res.data?.items ?? []);
-        setItems(fetchedItems);
-      })
-      .catch(() => setItems([]))
-      .finally(() => setLoading(false));
+    fetchStudentMenuSWR(
+      (data) => setItems(data),
+      (isLoading) => setLoading(isLoading)
+    );
+
+    const unsubscribe = subscribeMenuCache(() => {
+      fetchStudentMenuSWR((data) => setItems(data));
+    });
+
+    return () => unsubscribe();
   }, []);
 
   const safeItems = Array.isArray(items) ? items : [];
@@ -93,8 +95,8 @@ export default function MenuView({ cart, setCart, onOpenCart }) {
               key={cat}
               onClick={() => setCategory(cat)}
               className={`px-4 py-2 rounded-full text-xs font-bold whitespace-nowrap transition ${category === cat
-                  ? "bg-[#4a6741] dark:bg-[#8ebd7e] text-white dark:text-[#1a2416] shadow-sm"
-                  : "bg-white dark:bg-[#1a2416] text-gray-600 dark:text-gray-300 border border-gray-200 dark:border-[#2b3924]"
+                ? "bg-[#4a6741] dark:bg-[#8ebd7e] text-white dark:text-[#1a2416] shadow-sm"
+                : "bg-white dark:bg-[#1a2416] text-gray-600 dark:text-gray-300 border border-gray-200 dark:border-[#2b3924]"
                 }`}
             >
               {cat}

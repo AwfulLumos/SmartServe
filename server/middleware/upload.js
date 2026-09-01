@@ -7,6 +7,11 @@ if (!fs.existsSync(uploadsDir)) {
   fs.mkdirSync(uploadsDir, { recursive: true });
 }
 
+const menuUploadsDir = path.join(__dirname, "..", "uploads", "menu");
+if (!fs.existsSync(menuUploadsDir)) {
+  fs.mkdirSync(menuUploadsDir, { recursive: true });
+}
+
 // -------------------------------------------------------------
 // Whitelist Definitions
 // -------------------------------------------------------------
@@ -25,6 +30,15 @@ const storage = multer.diskStorage({
     const ext = path.extname(file.originalname).toLowerCase();
     const safeExt = ALLOWED_EXTENSIONS.has(ext) ? ext : ".png";
     cb(null, `profile-${Date.now()}-${Math.round(Math.random() * 1e9)}${safeExt}`);
+  },
+});
+
+const menuStorage = multer.diskStorage({
+  destination: (_req, _file, cb) => cb(null, menuUploadsDir),
+  filename: (_req, file, cb) => {
+    const ext = path.extname(file.originalname).toLowerCase();
+    const safeExt = ALLOWED_EXTENSIONS.has(ext) ? ext : ".jpg";
+    cb(null, `menu-${Date.now()}-${Math.round(Math.random() * 1e9)}${safeExt}`);
   },
 });
 
@@ -47,6 +61,12 @@ const uploadProfileImage = multer({
   storage,
   fileFilter,
   limits: { fileSize: 2 * 1024 * 1024 }, // 2MB maximum file size
+});
+
+const uploadMenuImage = multer({
+  storage: menuStorage,
+  fileFilter,
+  limits: { fileSize: 3 * 1024 * 1024 }, // 3MB maximum file size
 });
 
 /**
@@ -115,4 +135,35 @@ const handleProfileImageUpload = (req, res, next) => {
   });
 };
 
-module.exports = { uploadProfileImage, handleProfileImageUpload };
+/**
+ * Express middleware wrapper for menu image uploads.
+ */
+const handleMenuImageUpload = (req, res, next) => {
+  const uploadSingle = uploadMenuImage.single("imageFile");
+
+  uploadSingle(req, res, (err) => {
+    if (err) {
+      if (err instanceof multer.MulterError) {
+        if (err.code === "LIMIT_FILE_SIZE") {
+          return res.status(400).json({ message: "File size limit exceeded. Maximum menu image size is 3MB." });
+        }
+        return res.status(400).json({ message: `Upload error: ${err.message}` });
+      }
+      return res.status(400).json({ message: err.message || "Menu image upload failed" });
+    }
+
+    if (req.file) {
+      const isValidMagicBytes = verifyImageMagicBytes(req.file.path);
+      if (!isValidMagicBytes) {
+        if (fs.existsSync(req.file.path)) {
+          fs.unlinkSync(req.file.path);
+        }
+        return res.status(400).json({ message: "Invalid image file format detected (magic byte verification failed)." });
+      }
+    }
+
+    next();
+  });
+};
+
+module.exports = { uploadProfileImage, handleProfileImageUpload, uploadMenuImage, handleMenuImageUpload };

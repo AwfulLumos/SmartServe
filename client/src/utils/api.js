@@ -1,13 +1,8 @@
-// Axios library for making HTTP requests
 import axios from "axios";
+import toast from "react-hot-toast";
 
 // Base URL for API calls: uses environment variable or defaults to '/api'
 const API_URL = import.meta.env.VITE_API_URL || "/api";
-
-// Create a configured Axios instance with base URL and default JSON headers
-// This instance will be used for all API calls, ensuring consistent configuration
-//React frontend cannot communicate with Express backend
-// Axios is used to connect the frontend and backend of the system. It sends requests from the React frontend to the Express backend so the system can fetch, create, update, or delete data from MongoDB.
 
 const api = axios.create({
   baseURL: API_URL,
@@ -34,6 +29,18 @@ api.interceptors.request.use((config) => {
   }
   return config;
 });
+
+// Response interceptor: handle rate limiting (429) gracefully
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.response?.status === 429) {
+      const message = error.response?.data?.message || "Too many requests. Please wait a moment.";
+      toast.error(message, { id: "rate-limit-toast" });
+    }
+    return Promise.reject(error);
+  }
+);
 
 // Export the configured Axios instance for use in other modules
 export default api;
