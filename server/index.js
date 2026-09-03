@@ -76,7 +76,6 @@ app.use("/api/audit-logs", require("./routes/auditLogRoutes"));
 app.use("/api/dashboard", require("./routes/dashboardRoutes"));
 app.use("/api/notifications", require("./routes/notificationRoutes"));
 app.use("/api/feedback", require("./routes/feedbackRoutes"));
-app.use("/api/sample", require("./routes/sampleRoutes"));
 
 // Health check
 app.get("/api/health", (req, res) => {
