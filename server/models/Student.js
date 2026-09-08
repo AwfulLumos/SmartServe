@@ -27,17 +27,12 @@ const studentSchema = new mongoose.Schema(
     department: { type: String, default: "" },
     password: { type: String, required: true },
     isActive: { type: Boolean, default: true },
-    isDeleted: { type: Boolean, default: false },
-    deletedAt: { type: Date, default: null },
     points: { type: Number, default: 0 },
     byocCount: { type: Number, default: 0 },
-    profileImage: { type: String, default: "" },
     // Unique QR token derived from schoolId — used in Rewards scanning
     qrToken: { type: String, unique: true, sparse: true },
     resetCode: { type: String, default: null },
     resetCodeExpiry: { type: Date, default: null },
-    failedLoginAttempts: { type: Number, default: 0 },
-    lockUntil: { type: Date, default: null },
   },
   { timestamps: true }
 );
@@ -50,10 +45,6 @@ studentSchema.pre("save", async function (next) {
 
 studentSchema.methods.matchPassword = async function (password) {
   return bcrypt.compare(password, this.password);
-};
-
-studentSchema.methods.isLocked = function () {
-  return !!(this.lockUntil && this.lockUntil > Date.now());
 };
 
 module.exports = mongoose.model("Student", studentSchema);

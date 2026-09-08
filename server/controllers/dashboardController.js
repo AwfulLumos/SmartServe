@@ -58,7 +58,7 @@ exports.getDashboardStats = async (req, res) => {
     const outOfStock = allInventory.filter((i) => i.quantity === 0);
 
     // ── Students ──
-    const totalStudents = await Student.countDocuments({ isActive: true, isDeleted: { $ne: true } });
+    const totalStudents = await Student.countDocuments({ isActive: true });
 
     // ── Recent orders (last 8) ──
     const recentOrders = await Order.find({})
@@ -72,7 +72,6 @@ exports.getDashboardStats = async (req, res) => {
       .limit(5)
       .select("studentName schoolId rewardName pointsUsed createdAt");
 
-    //dito yung current-previous day / previous day * 100
     const pctChange = (today, yesterday) => {
       if (yesterday === 0) return today > 0 ? 100 : 0;
       return Math.round(((today - yesterday) / yesterday) * 100);

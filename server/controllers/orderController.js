@@ -1,5 +1,4 @@
 const Order = require("../models/Order");
-//This imports the MongoDB/Mongoose model for orders. It lets the backend do:
 const logAudit = require("../utils/auditLogger");
 const { pushNotification } = require("./notificationController");
 
@@ -72,68 +71,6 @@ exports.updateOrderStatus = async (req, res) => {
     res.status(500).json({ message: error.message });
   }
 };
-
-// PATCH /api/orders/bulk-status  (admin/staff)
-exports.bulkUpdateOrderStatus = async (req, res) => {
-  try {
-    const { orderIds, fromStatus, targetStatus } = req.body;
-    const allowed = ["pending", "preparing", "ready", "completed", "cancelled"];
-    if (!allowed.includes(targetStatus)) {
-      return res.status(400).json({ message: "Invalid target status" });
-    }
-
-    let filter = {};
-    if (Array.isArray(orderIds) && orderIds.length > 0) {
-      filter._id = { $in: orderIds };
-    } else if (fromStatus) {
-      filter.status = fromStatus;
-    } else {
-      return res.status(400).json({ message: "Please provide orderIds or a fromStatus filter" });
-    }
-
-    const ordersToUpdate = await Order.find(filter);
-    if (ordersToUpdate.length === 0) {
-      return res.json({ message: "No orders found to update", updatedCount: 0, orders: [] });
-    }
-
-    const updatedOrders = [];
-    for (const order of ordersToUpdate) {
-      const prev = order.status;
-      order.status = targetStatus;
-      await order.save();
-      updatedOrders.push(order);
-
-      // Notify student
-      pushNotification({
-        recipientType: "student",
-        recipientId: String(order.student),
-        type: "order_status",
-        title: "Order Update",
-        body: `Your order ${order.orderNumber} is now ${targetStatus}.`,
-        meta: { orderId: order._id, orderNumber: order.orderNumber, status: targetStatus },
-      });
-    }
-
-    logAudit({
-      action: "Bulk Order Status Updated",
-      actorType: req.user.role,
-      actorId: req.user._id,
-      actorName: req.user.fullName,
-      description: `${req.user.fullName} bulk updated ${updatedOrders.length} order(s) to "${targetStatus}"`,
-      category: "order",
-      meta: { targetStatus, count: updatedOrders.length },
-    });
-
-    res.json({
-      message: `Successfully updated ${updatedOrders.length} order(s) to ${targetStatus}`,
-      updatedCount: updatedOrders.length,
-      orders: updatedOrders,
-    });
-  } catch (error) {
-    res.status(500).json({ message: error.message });
-  }
-};
-
 
 // POST /api/orders  (student)
 exports.createOrder = async (req, res) => {

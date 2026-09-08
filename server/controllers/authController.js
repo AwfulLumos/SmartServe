@@ -1,11 +1,9 @@
 const jwt = require("jsonwebtoken");
-const fs = require("fs");
-const path = require("path");
 const User = require("../models/User");
 const logAudit = require("../utils/auditLogger");
 
 const generateToken = (id) =>
-  jwt.sign({ id }, process.env.JWT_SECRET, { expiresIn: "12h" });
+  jwt.sign({ id }, process.env.JWT_SECRET, { expiresIn: "7d" });
 
 // POST /api/auth/register
 exports.register = async (req, res) => {
@@ -63,28 +61,7 @@ exports.login = async (req, res) => {
     }
 
     const user = await User.findOne({ username });
-    if (!user) {
-      return res.status(401).json({ message: "Invalid username or password" });
-    }
-
-    if (user.isLocked()) {
-      const minutesRemaining = Math.ceil((user.lockUntil - Date.now()) / (60 * 1000));
-      return res.status(403).json({
-        message: `Account is temporarily locked due to consecutive failed login attempts. Please try again in ${minutesRemaining} minute(s).`,
-      });
-    }
-
-    const isMatch = await user.matchPassword(password);
-    if (!isMatch) {
-      user.failedLoginAttempts = (user.failedLoginAttempts || 0) + 1;
-      if (user.failedLoginAttempts >= 5) {
-        user.lockUntil = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes lockout
-        await user.save({ validateBeforeSave: false });
-        return res.status(403).json({
-          message: "Account locked due to 5 consecutive failed login attempts. Please try again after 15 minutes.",
-        });
-      }
-      await user.save({ validateBeforeSave: false });
+    if (!user || !(await user.matchPassword(password))) {
       return res.status(401).json({ message: "Invalid username or password" });
     }
 
@@ -93,13 +70,6 @@ exports.login = async (req, res) => {
         message: "Your account is pending approval by an admin. Please try again later.",
       });
     }
-
-    // Reset lockout counters on success
-    user.failedLoginAttempts = 0;
-    user.lockUntil = null;
-    user.lastLoginAt = new Date();
-    user.loginCount = (user.loginCount || 0) + 1;
-    await user.save({ validateBeforeSave: false });
 
     logAudit({
       action: "Staff Login",
@@ -110,186 +80,22 @@ exports.login = async (req, res) => {
       category: "auth",
     });
 
-    const token = generateToken(user._id);
-
-    // Set secure HttpOnly cookie (12 hours)
-    res.cookie("token", token, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "lax",
-      maxAge: 12 * 60 * 60 * 1000,
-    });
-
     res.json({
       _id: user._id,
       fullName: user.fullName,
       email: user.email,
       username: user.username,
       role: user.role,
-      profileImageUrl: user.profileImageUrl || "",
-      lastLoginAt: user.lastLoginAt,
-      loginCount: user.loginCount || 0,
-      createdAt: user.createdAt,
-      token,
+      token: generateToken(user._id),
     });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
-};
-
-// POST /api/auth/logout
-exports.logout = async (req, res) => {
-  res.clearCookie("token", {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "lax",
-  });
-  res.json({ message: "Logged out successfully" });
 };
 
 // GET /api/auth/me  (protected)
 exports.getMe = async (req, res) => {
   res.json(req.user);
-};
-
-// PATCH /api/auth/me/profile (protected - update own profile)
-exports.updateMyProfile = async (req, res) => {
-  try {
-    const user = await User.findById(req.user._id);
-    if (!user) return res.status(404).json({ message: "User not found" });
-
-    const fullName = req.body.fullName?.trim();
-    const username = req.body.username?.trim().toLowerCase();
-    const email = req.body.email?.trim().toLowerCase();
-
-    if (fullName !== undefined && !fullName) {
-      return res.status(400).json({ message: "Full name is required" });
-    }
-    if (username !== undefined && !username) {
-      return res.status(400).json({ message: "Username is required" });
-    }
-    if (email !== undefined && !email) {
-      return res.status(400).json({ message: "Email is required" });
-    }
-
-    if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-      return res.status(400).json({ message: "Invalid email format" });
-    }
-
-    if (username && !/^[a-z0-9._-]{3,30}$/.test(username)) {
-      return res.status(400).json({ message: "Username must be 3-30 chars (letters, numbers, . _ -)" });
-    }
-
-    if (email && email !== user.email) {
-      const existingEmail = await User.findOne({ email, _id: { $ne: user._id } });
-      if (existingEmail) {
-        return res.status(409).json({ message: "Email is already in use" });
-      }
-      user.email = email;
-    }
-
-    if (username && username !== user.username) {
-      const existingUsername = await User.findOne({ username, _id: { $ne: user._id } });
-      if (existingUsername) {
-        return res.status(409).json({ message: "Username is already in use" });
-      }
-      user.username = username;
-    }
-
-    if (fullName) user.fullName = fullName;
-
-    await user.save();
-
-    logAudit({
-      action: "Profile Updated",
-      actorType: user.role,
-      actorId: user._id,
-      actorName: user.fullName,
-      description: `${user.fullName} updated their profile`,
-      category: "auth",
-    });
-
-    res.json({
-      _id: user._id,
-      fullName: user.fullName,
-      email: user.email,
-      username: user.username,
-      role: user.role,
-      profileImageUrl: user.profileImageUrl || "",
-      lastLoginAt: user.lastLoginAt,
-      loginCount: user.loginCount || 0,
-      createdAt: user.createdAt,
-      token: req.headers.authorization?.split(" ")[1],
-    });
-  } catch (error) {
-    res.status(500).json({ message: error.message });
-  }
-};
-
-// POST /api/auth/me/profile-image (protected - upload own profile image)
-exports.uploadMyProfileImage = async (req, res) => {
-  try {
-    if (!req.file) {
-      return res.status(400).json({ message: "No image file uploaded" });
-    }
-
-    const user = await User.findById(req.user._id);
-    if (!user) return res.status(404).json({ message: "User not found" });
-
-    if (user.profileImageUrl && user.profileImageUrl.startsWith("/uploads/profiles/")) {
-      const relativeFile = user.profileImageUrl.replace(/^\//, "");
-      const previousPath = path.join(__dirname, "..", relativeFile);
-      if (fs.existsSync(previousPath)) {
-        fs.unlink(previousPath, () => { });
-      }
-    }
-
-    user.profileImageUrl = `/uploads/profiles/${req.file.filename}`;
-    await user.save({ validateBeforeSave: false });
-
-    res.json({
-      _id: user._id,
-      fullName: user.fullName,
-      email: user.email,
-      username: user.username,
-      role: user.role,
-      profileImageUrl: user.profileImageUrl,
-      lastLoginAt: user.lastLoginAt,
-      loginCount: user.loginCount || 0,
-      createdAt: user.createdAt,
-      token: req.headers.authorization?.split(" ")[1],
-    });
-  } catch (error) {
-    res.status(500).json({ message: error.message });
-  }
-};
-
-// DELETE /api/auth/me/profile (protected - delete own account)
-exports.deleteMyProfile = async (req, res) => {
-  try {
-    const user = await User.findById(req.user._id);
-    if (!user) return res.status(404).json({ message: "User not found" });
-
-    const adminsCount = await User.countDocuments({ role: "admin", isApproved: true });
-    if (user.role === "admin" && adminsCount <= 1) {
-      return res.status(400).json({ message: "Cannot delete the last admin account" });
-    }
-
-    await User.findByIdAndDelete(req.user._id);
-
-    logAudit({
-      action: "Profile Deleted",
-      actorType: user.role,
-      actorId: user._id,
-      actorName: user.fullName,
-      description: `${user.fullName} deleted their own account`,
-      category: "auth",
-    });
-
-    res.json({ message: "Account deleted successfully" });
-  } catch (error) {
-    res.status(500).json({ message: error.message });
-  }
 };
 
 // GET /api/auth/pending  (admin only — list unapproved users)
@@ -411,96 +217,6 @@ exports.deleteStaffAccount = async (req, res) => {
     });
 
     res.json({ message: `${user.fullName}'s account has been deleted.` });
-  } catch (error) {
-    res.status(500).json({ message: error.message });
-  }
-};
-
-// PATCH /api/auth/change-password  (protected - admin changing own password)
-exports.changePassword = async (req, res) => {
-  try {
-    const { oldPassword, newPassword, confirmPassword } = req.body;
-
-    if (!oldPassword || !newPassword || !confirmPassword) {
-      return res.status(400).json({ message: "All fields are required" });
-    }
-
-    if (newPassword !== confirmPassword) {
-      return res.status(400).json({ message: "New passwords do not match" });
-    }
-
-    if (newPassword.length < 6) {
-      return res.status(400).json({ message: "Password must be at least 6 characters" });
-    }
-
-    if (oldPassword === newPassword) {
-      return res.status(400).json({ message: "New password must be different from old password" });
-    }
-
-    const user = await User.findById(req.user._id);
-    if (!user) {
-      return res.status(404).json({ message: "User not found" });
-    }
-
-    if (!(await user.matchPassword(oldPassword))) {
-      return res.status(401).json({ message: "Current password is incorrect" });
-    }
-
-    user.password = newPassword;
-    await user.save();
-
-    logAudit({
-      action: "Password Changed",
-      actorType: req.user.role,
-      actorId: req.user._id,
-      actorName: req.user.fullName,
-      description: `${req.user.fullName} changed their password`,
-      category: "auth",
-    });
-
-    res.json({ message: "Password changed successfully" });
-  } catch (error) {
-    res.status(500).json({ message: error.message });
-  }
-};
-
-// POST /api/auth/staff/:id/reset-password  (admin only - reset another staff member's password)
-exports.resetStaffPassword = async (req, res) => {
-  try {
-    const { id } = req.params;
-
-    // Prevent resetting own password through this endpoint
-    if (id === String(req.user._id)) {
-      return res.status(400).json({ message: "Use the change password endpoint for your own account" });
-    }
-
-    const user = await User.findById(id);
-    if (!user) {
-      return res.status(404).json({ message: "User not found" });
-    }
-
-    const crypto = require("crypto");
-    const resetCode = String(Math.floor(100000 + crypto.randomInt(900000)));
-    const resetCodeExpiry = new Date(Date.now() + 15 * 60 * 1000);
-
-    user.resetCode = resetCode;
-    user.resetCodeExpiry = resetCodeExpiry;
-    await user.save({ validateBeforeSave: false });
-
-    const { sendResetCode } = require("../config/mailer");
-    await sendResetCode(user.email, resetCode);
-
-    logAudit({
-      action: "Staff Password Reset",
-      actorType: req.user.role,
-      actorId: req.user._id,
-      actorName: req.user.fullName,
-      description: `${req.user.fullName} initiated password reset for ${user.fullName}`,
-      category: "auth",
-      meta: { targetUserId: user._id, targetUserEmail: user.email },
-    });
-
-    res.json({ message: "Password reset code sent to user's email" });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }

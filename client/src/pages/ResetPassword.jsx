@@ -1,13 +1,12 @@
 import { useState } from "react";
-import { useNavigate, useLocation } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { IoLockClosed, IoArrowBack, IoCheckmarkCircle, IoEyeOutline, IoEyeOffOutline } from "react-icons/io5";
-import StudentLayout from "../../components/StudentLayout";
-import api from "../../utils/api";
+import api from "../utils/api";
 
-export default function StudentResetPassword() {
+export default function ResetPassword() {
   const navigate = useNavigate();
   const { state } = useLocation();
-  const schoolId = state?.schoolId || "";
+  const email = state?.email || "";
   const code = state?.code || "";
 
   const [form, setForm] = useState({ password: "", confirmPassword: "" });
@@ -17,8 +16,8 @@ export default function StudentResetPassword() {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState(false);
 
-  if (!schoolId || !code) {
-    navigate("/student/forgot-password");
+  if (!email || !code) {
+    navigate("/forgot-password");
     return null;
   }
 
@@ -28,14 +27,16 @@ export default function StudentResetPassword() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
+
     if (form.password !== form.confirmPassword) {
       setError("Passwords do not match");
       return;
     }
+
     setLoading(true);
     try {
-      await api.post("/student/auth/reset-password", {
-        schoolId,
+      await api.post("/auth/reset-password", {
+        email,
         code,
         password: form.password,
         confirmPassword: form.confirmPassword,
@@ -50,43 +51,60 @@ export default function StudentResetPassword() {
 
   if (success) {
     return (
-      <StudentLayout>
-        <div className="bg-white rounded-3xl shadow-xl px-6 py-8 w-full text-center space-y-5">
-          <div className="flex justify-center">
-            <div className="w-16 h-16 bg-[#c8dfc0] rounded-full flex items-center justify-center">
-              <IoCheckmarkCircle className="text-[#4a6741] text-3xl" />
-            </div>
+      <div
+        className="min-h-screen flex items-center justify-center px-4"
+        style={{
+          backgroundImage: "url('/bg-cafeteria.jpg')",
+          backgroundSize: "cover",
+          backgroundPosition: "center",
+        }}
+      >
+        <div className="absolute inset-0 bg-[#4a6741]/60" />
+        <div className="relative z-10 bg-white rounded-2xl shadow-2xl p-8 w-full max-w-md text-center space-y-5">
+          <div className="w-16 h-16 bg-[#c8dfc0] rounded-full flex items-center justify-center mx-auto">
+            <IoCheckmarkCircle className="text-[#4a6741] text-3xl" />
           </div>
-          <h2 className="text-xl font-bold text-[#4a6741]">Password Reset!</h2>
-          <p className="text-gray-500 text-sm leading-relaxed">
+          <h2 className="text-2xl font-bold text-[#4a6741]">Password Reset!</h2>
+          <p className="text-gray-500 text-sm">
             Your password has been updated successfully. You can now sign in with your new password.
           </p>
-          <button
-            onClick={() => navigate("/student/login")}
-            className="w-full bg-[#4a6741] hover:bg-[#3a5333] active:bg-[#2e4228] text-white font-semibold py-4 rounded-xl transition text-base shadow-sm"
+          <Link
+            to="/login"
+            className="inline-block w-full bg-[#4a6741] hover:bg-[#3a5333] text-white font-semibold py-3.5 rounded-xl transition text-sm"
           >
             Back to Sign In
-          </button>
+          </Link>
         </div>
-      </StudentLayout>
+      </div>
     );
   }
 
   return (
-    <StudentLayout>
-      <div className="bg-white rounded-3xl shadow-xl px-6 py-8 w-full">
+    <div
+      className="min-h-screen flex items-center justify-center px-4"
+      style={{
+        backgroundImage: "url('/bg-cafeteria.jpg')",
+        backgroundSize: "cover",
+        backgroundPosition: "center",
+      }}
+    >
+      {/* Overlay */}
+      <div className="absolute inset-0 bg-[#4a6741]/60" />
+
+      {/* Card */}
+      <div className="relative z-10 bg-white rounded-2xl shadow-2xl p-8 w-full max-w-md">
         {/* Back */}
-        <button
-          type="button"
-          onClick={() => navigate(-1)}
-          className="inline-flex items-center gap-1.5 text-sm text-gray-600 font-medium mb-5 hover:text-[#4a6741] transition"
+        <Link
+          to="/verify-reset-code"
+          state={{ email }}
+          className="inline-flex items-center gap-1.5 text-sm text-[#4a6741] font-medium hover:underline mb-6"
         >
           <IoArrowBack className="text-base" />
-          Back
-        </button>
+          Back to login
+        </Link>
 
         {/* Icon */}
-        <div className="flex justify-center mb-4">
+        <div className="flex justify-center mb-5">
           <div className="w-16 h-16 bg-[#c8dfc0] rounded-full flex items-center justify-center">
             <IoLockClosed className="text-[#4a6741] text-2xl" />
           </div>
@@ -121,7 +139,7 @@ export default function StudentResetPassword() {
                 placeholder="Min. 6 characters"
                 required
                 minLength={6}
-                className="w-full pl-11 pr-11 py-3.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#4a6741]/30 focus:border-[#4a6741] transition bg-white"
+                className="w-full pl-11 pr-11 py-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#4a6741]/30 focus:border-[#4a6741] transition"
               />
               <button
                 type="button"
@@ -148,7 +166,7 @@ export default function StudentResetPassword() {
                 placeholder="Repeat new password"
                 required
                 minLength={6}
-                className="w-full pl-11 pr-11 py-3.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#4a6741]/30 focus:border-[#4a6741] transition bg-white"
+                className="w-full pl-11 pr-11 py-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#4a6741]/30 focus:border-[#4a6741] transition"
               />
               <button
                 type="button"
@@ -164,12 +182,12 @@ export default function StudentResetPassword() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full bg-[#4a6741] hover:bg-[#3a5333] active:bg-[#2e4228] text-white font-semibold py-4 rounded-xl transition disabled:opacity-60 text-base shadow-sm mt-2"
+            className="w-full bg-[#4a6741] hover:bg-[#3a5333] text-white font-semibold py-3.5 rounded-xl transition disabled:opacity-60"
           >
             {loading ? "Resetting..." : "Reset Password"}
           </button>
         </form>
       </div>
-    </StudentLayout>
+    </div>
   );
 }

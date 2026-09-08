@@ -27,11 +27,6 @@ const userSchema = new mongoose.Schema(
     isApproved: { type: Boolean, default: false },
     resetCode: { type: String, default: null },
     resetCodeExpiry: { type: Date, default: null },
-    profileImageUrl: { type: String, default: "" },
-    lastLoginAt: { type: Date, default: null },
-    loginCount: { type: Number, default: 0 },
-    failedLoginAttempts: { type: Number, default: 0 },
-    lockUntil: { type: Date, default: null },
   },
   { timestamps: true }
 );
@@ -44,10 +39,6 @@ userSchema.pre("save", async function (next) {
 
 userSchema.methods.matchPassword = async function (password) {
   return bcrypt.compare(password, this.password);
-};
-
-userSchema.methods.isLocked = function () {
-  return !!(this.lockUntil && this.lockUntil > Date.now());
 };
 
 module.exports = mongoose.model("User", userSchema);

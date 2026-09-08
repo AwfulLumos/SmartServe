@@ -1,68 +1,20 @@
-const fs = require("fs");
-const path = require("path");
 const MenuItem = require("../models/MenuItem");
 const logAudit = require("../utils/auditLogger");
-
-// In-Memory Cache Store
-let activeMenuCache = null;
-let allMenuCache = null;
-let activeCacheTime = 0;
-let allCacheTime = 0;
-const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes cache lifetime
-
-// Helper to invalidate cache when menu items are mutated
-const invalidateMenuCache = () => {
-  activeMenuCache = null;
-  allMenuCache = null;
-  activeCacheTime = 0;
-  allCacheTime = 0;
-};
-
-const removeLocalUpload = (fileUrl) => {
-  if (!fileUrl || typeof fileUrl !== "string" || !fileUrl.startsWith("/uploads/menu/")) return;
-  const filename = path.basename(fileUrl);
-  const diskPath = path.join(__dirname, "..", "uploads", "menu", filename);
-  if (fs.existsSync(diskPath)) {
-    try {
-      fs.unlinkSync(diskPath);
-    } catch { /* ignore */ }
-  }
-};
 
 // GET /api/menu/active  (student-accessible – only active items)
 exports.getActiveMenuItems = async (req, res) => {
   try {
-    const now = Date.now();
-    if (activeMenuCache && now - activeCacheTime < CACHE_TTL_MS) {
-      return res.json(activeMenuCache);
-    }
-
-    const items = await MenuItem.find({ isActive: { $ne: false } })
-      .sort({ category: 1, createdAt: -1 })
-      .lean();
-
-    activeMenuCache = items;
-    activeCacheTime = now;
+    const items = await MenuItem.find({ isActive: true }).sort({ category: 1, createdAt: -1 });
     res.json(items);
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
 };
 
-// GET /api/menu (admin / staff)
+// GET /api/menu
 exports.getMenuItems = async (req, res) => {
   try {
-    const now = Date.now();
-    if (allMenuCache && now - allCacheTime < CACHE_TTL_MS) {
-      return res.json(allMenuCache);
-    }
-
-    const items = await MenuItem.find({})
-      .sort({ category: 1, createdAt: -1 })
-      .lean();
-
-    allMenuCache = items;
-    allCacheTime = now;
+    const items = await MenuItem.find({}).sort({ category: 1, createdAt: -1 });
     res.json(items);
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -73,18 +25,10 @@ exports.getMenuItems = async (req, res) => {
 exports.createMenuItem = async (req, res) => {
   try {
     const { name, category, price } = req.body;
-    let imageUrl = req.body.image || "";
-
-    if (req.file) {
-      imageUrl = `/uploads/menu/${req.file.filename}`;
-    }
-
     if (!name || !category || price === undefined) {
       return res.status(400).json({ message: "Name, category and price are required" });
     }
-    const item = await MenuItem.create({ name, category, price: Number(price), image: imageUrl });
-
-    invalidateMenuCache();
+    const item = await MenuItem.create({ name, category, price });
 
     logAudit({
       action: "Menu Item Added",
@@ -105,32 +49,13 @@ exports.createMenuItem = async (req, res) => {
 // PUT /api/menu/:id
 exports.updateMenuItem = async (req, res) => {
   try {
-    const { name, category, price, image } = req.body;
-    const updateData = {};
-    if (name) updateData.name = name;
-    if (category) updateData.category = category;
-    if (price !== undefined) updateData.price = Number(price);
-
-    const existingItem = await MenuItem.findById(req.params.id);
-    if (!existingItem) return res.status(404).json({ message: "Menu item not found" });
-
-    if (req.file) {
-      removeLocalUpload(existingItem.image);
-      updateData.image = `/uploads/menu/${req.file.filename}`;
-    } else if (image !== undefined) {
-      if (image === "" && existingItem.image) {
-        removeLocalUpload(existingItem.image);
-      }
-      updateData.image = image;
-    }
-
+    const { name, category, price } = req.body;
     const item = await MenuItem.findByIdAndUpdate(
       req.params.id,
-      updateData,
+      { name, category, price },
       { new: true, runValidators: true }
     );
-
-    invalidateMenuCache();
+    if (!item) return res.status(404).json({ message: "Menu item not found" });
 
     logAudit({
       action: "Menu Item Updated",
@@ -156,8 +81,6 @@ exports.toggleMenuItem = async (req, res) => {
     item.isActive = !item.isActive;
     await item.save();
 
-    invalidateMenuCache();
-
     logAudit({
       action: `Menu Item ${item.isActive ? "Enabled" : "Disabled"}`,
       actorType: req.user.role,
@@ -179,9 +102,6 @@ exports.deleteMenuItem = async (req, res) => {
   try {
     const item = await MenuItem.findByIdAndDelete(req.params.id);
     if (!item) return res.status(404).json({ message: "Menu item not found" });
-
-    removeLocalUpload(item.image);
-    invalidateMenuCache();
 
     logAudit({
       action: "Menu Item Deleted",

@@ -8,7 +8,6 @@ const inventoryItemSchema = new mongoose.Schema(
     unit: { type: String, required: true, default: "pcs", trim: true },
     minThreshold: { type: Number, required: true, min: 0, default: 0 },
     price: { type: Number, required: true, min: 0, default: 0 },
-    unitCost: { type: Number, min: 0, default: 0 },
   },
   { timestamps: true }
 );

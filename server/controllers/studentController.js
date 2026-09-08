@@ -11,45 +11,6 @@ const generateQrToken = (schoolId) => {
   return `SSQR-${schoolId.toUpperCase()}-${suffix}`;
 };
 
-const normalizeSchoolId = (schoolId) => (schoolId || "").toUpperCase().trim();
-const normalizeEmail = (email) => (email || "").toLowerCase().trim();
-
-const findStudentConflict = async ({ schoolId, email, excludeId } = {}) => {
-  const query = { $or: [] };
-  const normalizedSchoolId = normalizeSchoolId(schoolId);
-  const normalizedEmail = normalizeEmail(email);
-
-  if (normalizedSchoolId) query.$or.push({ schoolId: normalizedSchoolId });
-  if (normalizedEmail) query.$or.push({ email: normalizedEmail });
-  if (!query.$or.length) return null;
-  if (excludeId) query._id = { $ne: excludeId };
-
-  return Student.findOne(query).select("_id schoolId email fullName userType");
-};
-
-exports.checkStudentExists = async (req, res) => {
-  try {
-    const conflict = await findStudentConflict({ schoolId: req.query.schoolId, email: req.query.email });
-
-    if (!conflict) {
-      return res.json({ exists: false, conflict: { schoolId: false, email: false } });
-    }
-
-    const schoolId = normalizeSchoolId(req.query.schoolId);
-    const email = normalizeEmail(req.query.email);
-
-    return res.json({
-      exists: true,
-      conflict: {
-        schoolId: conflict.schoolId === schoolId,
-        email: conflict.email === email,
-      },
-    });
-  } catch (error) {
-    res.status(500).json({ message: error.message });
-  }
-};
-
 // POST /api/students  (admin/staff only)
 exports.createStudent = async (req, res) => {
   try {
@@ -64,11 +25,12 @@ exports.createStudent = async (req, res) => {
     }
 
     const fullName = `${firstName.trim()} ${lastName.trim()}`;
-    const normalizedId = normalizeSchoolId(schoolId);
-    const normalizedEmail = normalizeEmail(email);
+    const normalizedId = schoolId.toUpperCase().trim();
     const type = userType === "employee" ? "employee" : "student";
 
-    const existing = await findStudentConflict({ schoolId: normalizedId, email: normalizedEmail });
+    const existing = await Student.findOne({
+      $or: [{ schoolId: normalizedId }, { email: email.toLowerCase().trim() }],
+    });
     if (existing) {
       return res.status(409).json({ message: "A user with that ID or email already exists" });
     }
@@ -77,7 +39,7 @@ exports.createStudent = async (req, res) => {
 
     const student = await Student.create({
       fullName,
-      email: normalizedEmail,
+      email,
       schoolId: normalizedId,
       userType: type,
       gradeLevel: type === "student" ? (gradeLevel || "") : "",
@@ -121,17 +83,8 @@ exports.createStudent = async (req, res) => {
 // GET /api/students  (admin/staff only)
 exports.getStudents = async (req, res) => {
   try {
-    const { search, page = 1, limit = 20, userType, isActive, isDeleted, gradeLevel, department } = req.query;
+    const { search, page = 1, limit = 20 } = req.query;
     const query = {};
-
-    if (isDeleted === "true") {
-      query.isDeleted = true;
-    } else if (isDeleted === "all") {
-      // Return all regardless of isDeleted
-    } else {
-      // Default: exclude soft-deleted users
-      query.isDeleted = { $ne: true };
-    }
 
     if (search) {
       query.$or = [
@@ -139,22 +92,6 @@ exports.getStudents = async (req, res) => {
         { schoolId: { $regex: search, $options: "i" } },
         { email: { $regex: search, $options: "i" } },
       ];
-    }
-
-    if (userType) {
-      query.userType = userType;
-    }
-
-    if (isActive !== undefined && isActive !== "") {
-      query.isActive = isActive === "true";
-    }
-
-    if (gradeLevel) {
-      query.gradeLevel = gradeLevel;
-    }
-
-    if (department) {
-      query.department = department;
     }
 
     const total = await Student.countDocuments(query);
@@ -200,17 +137,10 @@ exports.updateStudent = async (req, res) => {
 
     const { firstName, lastName, email, schoolId, userType, gradeLevel, section, jobTitle, department, isActive, password } = req.body;
 
-    const nextSchoolId = schoolId !== undefined ? normalizeSchoolId(schoolId) : student.schoolId;
-    const nextEmail = email !== undefined ? normalizeEmail(email) : student.email;
-    const duplicate = await findStudentConflict({ schoolId: nextSchoolId, email: nextEmail, excludeId: student._id });
-    if (duplicate) {
-      return res.status(409).json({ message: "A user with that ID or email already exists" });
-    }
-
     if (firstName !== undefined) student.fullName = `${firstName.trim()} ${(lastName ?? student.fullName.split(" ").slice(1).join(" ")).trim()}`;
     if (firstName !== undefined && lastName !== undefined) student.fullName = `${firstName.trim()} ${lastName.trim()}`;
-    if (email !== undefined) student.email = normalizeEmail(email);
-    if (schoolId !== undefined) student.schoolId = normalizeSchoolId(schoolId);
+    if (email !== undefined) student.email = email.toLowerCase().trim();
+    if (schoolId !== undefined) student.schoolId = schoolId.toUpperCase().trim();
     if (userType !== undefined) student.userType = userType === "employee" ? "employee" : "student";
     if (gradeLevel !== undefined) student.gradeLevel = gradeLevel;
     if (section !== undefined) student.section = section;
@@ -241,110 +171,23 @@ exports.updateStudent = async (req, res) => {
   }
 };
 
-// DELETE /api/students/:id  (admin only - Soft Delete)
+// DELETE /api/students/:id  (admin only)
 exports.deleteStudent = async (req, res) => {
   try {
-    const student = await Student.findById(req.params.id);
-    if (!student) return res.status(404).json({ message: "User not found" });
-
-    student.isDeleted = true;
-    student.deletedAt = new Date();
-    student.isActive = false;
-    await student.save({ validateBeforeSave: false });
-
-    logAudit({
-      action: "Student Soft Deleted",
-      actorType: req.user.role,
-      actorId: req.user._id,
-      actorName: req.user.fullName,
-      description: `${req.user.fullName} soft-deleted user "${student.fullName}" (${student.schoolId})`,
-      category: "student",
-      meta: { studentId: student._id, schoolId: student.schoolId },
-    });
-
-    res.json({ message: "User account soft-deleted successfully", student });
-  } catch (error) {
-    res.status(500).json({ message: error.message });
-  }
-};
-
-// PUT /api/students/:id/restore  (admin only - Restore Soft-Deleted Account)
-exports.restoreStudent = async (req, res) => {
-  try {
-    const student = await Student.findById(req.params.id);
-    if (!student) return res.status(404).json({ message: "User not found" });
-
-    student.isDeleted = false;
-    student.deletedAt = null;
-    student.isActive = true;
-    await student.save({ validateBeforeSave: false });
-
-    logAudit({
-      action: "Student Restored",
-      actorType: req.user.role,
-      actorId: req.user._id,
-      actorName: req.user.fullName,
-      description: `${req.user.fullName} restored user "${student.fullName}" (${student.schoolId})`,
-      category: "student",
-      meta: { studentId: student._id, schoolId: student.schoolId },
-    });
-
-    res.json({ message: "User account restored successfully", student });
-  } catch (error) {
-    res.status(500).json({ message: error.message });
-  }
-};
-
-// DELETE /api/students/:id/permanent  (admin only - Permanent Hard Delete)
-exports.permanentDeleteStudent = async (req, res) => {
-  try {
     const student = await Student.findByIdAndDelete(req.params.id);
-    if (!student) return res.status(404).json({ message: "User not found" });
+    if (!student) return res.status(404).json({ message: "Student not found" });
 
     logAudit({
-      action: "Student Permanently Deleted",
+      action: "Student Deleted",
       actorType: req.user.role,
       actorId: req.user._id,
       actorName: req.user.fullName,
-      description: `${req.user.fullName} permanently deleted user "${student.fullName}" (${student.schoolId})`,
+      description: `${req.user.fullName} deleted user "${student.fullName}" (${student.schoolId})`,
       category: "student",
       meta: { studentId: student._id, schoolId: student.schoolId },
     });
 
-    res.json({ message: "User permanently deleted from database" });
-  } catch (error) {
-    res.status(500).json({ message: error.message });
-  }
-};
-
-// POST /api/students/:id/reset-password  (admin/staff only)
-// Admin initiates a password reset for a user — sends reset code email
-exports.resetStudentPassword = async (req, res) => {
-  try {
-    const student = await Student.findById(req.params.id);
-    if (!student) return res.status(404).json({ message: "User not found" });
-
-    const { sendResetCode } = require("../config/mailer");
-    const resetCode = String(Math.floor(100000 + crypto.randomInt(900000)));
-    const resetCodeExpiry = new Date(Date.now() + 15 * 60 * 1000); // 15 min expiry
-
-    student.resetCode = resetCode;
-    student.resetCodeExpiry = resetCodeExpiry;
-    await student.save({ validateBeforeSave: false });
-
-    await sendResetCode(student.email, resetCode);
-
-    logAudit({
-      action: "Password Reset Initiated",
-      actorType: req.user.role,
-      actorId: req.user._id,
-      actorName: req.user.fullName,
-      description: `${req.user.fullName} initiated password reset for user "${student.fullName}" (${student.schoolId})`,
-      category: "student",
-      meta: { studentId: student._id, schoolId: student.schoolId },
-    });
-
-    res.json({ message: "Password reset code sent to user's email" });
+    res.json({ message: "User deleted successfully" });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }

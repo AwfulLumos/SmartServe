@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { IoLockClosed, IoEyeOutline, IoEyeOffOutline } from "react-icons/io5";
 import { MdTag } from "react-icons/md";
 import StudentLayout from "../../components/StudentLayout";
@@ -23,7 +23,6 @@ export default function StudentLogin() {
     setError("");
     const result = await login(form.schoolId, form.password);
     if (result.success) {
-      sessionStorage.setItem("smartserve_student_just_logged_in", "true");
       navigate("/student/dashboard");
     } else {
       setError(result.message);
@@ -60,7 +59,7 @@ export default function StudentLogin() {
                 name="schoolId"
                 value={form.schoolId}
                 onChange={handleChange}
-                placeholder="e.g. STU-2024-001"
+                placeholder="ID Number"
                 required
                 autoCapitalize="characters"
                 className="w-full pl-11 pr-4 py-3.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#4a6741]/30 focus:border-[#4a6741] transition bg-white"
@@ -130,13 +129,6 @@ export default function StudentLogin() {
           <p>Earn points with every purchase</p>
           <p>Track your eco-impact with BYOC. Redeem rewards!</p>
         </div>
-
-        <p className="text-center text-xs text-gray-500 mt-4">
-          Are you a staff or admin?{" "}
-          <Link to="/login" className="text-[#4a6741] font-semibold hover:underline">
-            Staff / Admin Login
-          </Link>
-        </p>
       </div>
     </StudentLayout>
   );

@@ -14,7 +14,7 @@ export default function StudentSplash() {
         {/* App Name */}
         <div>
           <h1 className="text-4xl font-bold text-[#4a6741] leading-tight">SmartServe</h1>
-          <p className="text-gray-600 text-base mt-1 font-medium">Student Portal</p>
+          <p className="text-gray-600 text-base mt-1 font-medium">Student & Employee Portal</p>
         </div>
 
         {/* Tagline */}

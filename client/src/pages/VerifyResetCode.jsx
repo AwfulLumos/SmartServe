@@ -1,13 +1,11 @@
 import { useState, useRef } from "react";
-import { useNavigate, useLocation } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { IoKeyOutline, IoArrowBack } from "react-icons/io5";
-import StudentLayout from "../../components/StudentLayout";
-import api from "../../utils/api";
+import api from "../utils/api";
 
-export default function StudentVerifyResetCode() {
+export default function VerifyResetCode() {
   const navigate = useNavigate();
   const { state } = useLocation();
-  const schoolId = state?.schoolId || "";
   const email = state?.email || "";
 
   const [digits, setDigits] = useState(["", "", "", "", "", ""]);
@@ -15,12 +13,14 @@ export default function StudentVerifyResetCode() {
   const [error, setError] = useState("");
   const inputsRef = useRef([]);
 
-  if (!schoolId || !email) {
-    navigate("/student/forgot-password");
+  // Redirect back if somehow accessed directly without email
+  if (!email) {
+    navigate("/forgot-password");
     return null;
   }
 
   const handleChange = (index, value) => {
+    // Accept only single digit
     const digit = value.replace(/\D/g, "").slice(-1);
     const updated = [...digits];
     updated[index] = digit;
@@ -53,8 +53,8 @@ export default function StudentVerifyResetCode() {
     setError("");
     setLoading(true);
     try {
-      await api.post("/student/auth/verify-reset-code", { schoolId, code });
-      navigate("/student/reset-password", { state: { schoolId, code } });
+      await api.post("/auth/verify-reset-code", { email, code });
+      navigate("/reset-password", { state: { email, code } });
     } catch (err) {
       setError(err.response?.data?.message || "Invalid or expired code. Please try again.");
     } finally {
@@ -65,7 +65,7 @@ export default function StudentVerifyResetCode() {
   const handleResend = async () => {
     setError("");
     try {
-      await api.post("/student/auth/forgot-password", { schoolId, email });
+      await api.post("/auth/forgot-password", { email });
       setDigits(["", "", "", "", "", ""]);
       inputsRef.current[0]?.focus();
     } catch {
@@ -74,20 +74,30 @@ export default function StudentVerifyResetCode() {
   };
 
   return (
-    <StudentLayout>
-      <div className="bg-white rounded-3xl shadow-xl px-6 py-8 w-full">
+    <div
+      className="min-h-screen flex items-center justify-center px-4"
+      style={{
+        backgroundImage: "url('/bg-cafeteria.jpg')",
+        backgroundSize: "cover",
+        backgroundPosition: "center",
+      }}
+    >
+      {/* Overlay */}
+      <div className="absolute inset-0 bg-[#4a6741]/60" />
+
+      {/* Card */}
+      <div className="relative z-10 bg-white rounded-2xl shadow-2xl p-8 w-full max-w-md">
         {/* Back */}
-        <button
-          type="button"
-          onClick={() => navigate("/student/forgot-password")}
-          className="inline-flex items-center gap-1.5 text-sm text-gray-600 font-medium mb-5 hover:text-[#4a6741] transition"
+        <Link
+          to="/forgot-password"
+          className="inline-flex items-center gap-1.5 text-sm text-[#4a6741] font-medium hover:underline mb-6"
         >
           <IoArrowBack className="text-base" />
-          Back
-        </button>
+          Back to login
+        </Link>
 
         {/* Icon */}
-        <div className="flex justify-center mb-4">
+        <div className="flex justify-center mb-5">
           <div className="w-16 h-16 bg-[#c8dfc0] rounded-full flex items-center justify-center">
             <IoKeyOutline className="text-[#4a6741] text-2xl" />
           </div>
@@ -109,6 +119,7 @@ export default function StudentVerifyResetCode() {
         )}
 
         <form onSubmit={handleSubmit} className="space-y-6">
+          {/* OTP Inputs */}
           <div className="flex justify-between gap-2" onPaste={handlePaste}>
             {digits.map((d, i) => (
               <input
@@ -128,7 +139,7 @@ export default function StudentVerifyResetCode() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full bg-[#4a6741] hover:bg-[#3a5333] active:bg-[#2e4228] text-white font-semibold py-4 rounded-xl transition disabled:opacity-60 text-base shadow-sm"
+            className="w-full bg-[#4a6741] hover:bg-[#3a5333] text-white font-semibold py-3.5 rounded-xl transition disabled:opacity-60"
           >
             {loading ? "Verifying..." : "Verify Code"}
           </button>
@@ -145,6 +156,6 @@ export default function StudentVerifyResetCode() {
           </button>
         </p>
       </div>
-    </StudentLayout>
+    </div>
   );
 }
