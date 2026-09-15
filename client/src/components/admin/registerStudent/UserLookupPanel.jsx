@@ -1,3 +1,4 @@
+import { useState } from "react";
 import QRCode from "react-qr-code";
 import {
   IoCloseOutline,
@@ -13,6 +14,14 @@ import {
   IoEllipsisVertical,
   IoDownloadOutline,
   IoPencilOutline,
+  IoGlobeOutline,
+  IoWifiOutline,
+  IoLocationOutline,
+  IoPhonePortraitOutline,
+  IoLaptopOutline,
+  IoTimeOutline,
+  IoCopyOutline,
+  IoCheckmarkOutline,
 } from "react-icons/io5";
 import { SkeletonList } from "../../SkeletonLoader";
 import { resolveStudentImageUrl, downloadQR } from "./RegisterConstants";
@@ -29,7 +38,15 @@ export default function UserLookupPanel({
   onOpenEdit,
   onClose,
 }) {
+  const [copiedIp, setCopiedIp] = useState(false);
   if (!selectedStudent) return null;
+
+  const copyIp = (ip) => {
+    if (!ip) return;
+    navigator.clipboard.writeText(ip);
+    setCopiedIp(true);
+    setTimeout(() => setCopiedIp(false), 2000);
+  };
 
   const profileUrl = resolveStudentImageUrl(selectedStudent.profileImage || selectedStudent.profileImageUrl);
 
@@ -145,6 +162,90 @@ export default function UserLookupPanel({
                       <span className="font-semibold text-gray-700 truncate">{String(value)}</span>
                     </div>
                   ))}
+                </div>
+
+                {/* Network & Security Telemetry */}
+                <div className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <div className="w-6 h-6 rounded-lg bg-emerald-50 text-emerald-700 flex items-center justify-center text-sm">
+                        <IoGlobeOutline />
+                      </div>
+                      <span className="text-xs font-bold text-gray-800 uppercase tracking-wide">
+                        Network Telemetry
+                      </span>
+                    </div>
+                    {selectedStudent.lastLoginIp ? (
+                      <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                        Tracked
+                      </span>
+                    ) : (
+                      <span className="text-[10px] text-gray-400 italic">Offline</span>
+                    )}
+                  </div>
+
+                  <div className="space-y-2 text-xs">
+                    {/* IP Row */}
+                    <div className="flex items-center justify-between p-2.5 bg-gray-50 rounded-lg border border-gray-100">
+                      <span className="text-gray-500 font-medium flex items-center gap-1.5">
+                        <IoWifiOutline className="text-gray-400 text-sm" /> Last Known IP
+                      </span>
+                      {selectedStudent.lastLoginIp ? (
+                        <div className="flex items-center gap-1.5">
+                          <code className="font-mono font-bold text-gray-800 bg-white px-2 py-0.5 rounded border border-gray-200">
+                            {selectedStudent.lastLoginIp}
+                          </code>
+                          <button
+                            onClick={() => copyIp(selectedStudent.lastLoginIp)}
+                            title="Copy IP address"
+                            className="p-1 hover:bg-gray-200 rounded text-gray-400 hover:text-gray-700 transition cursor-pointer"
+                          >
+                            {copiedIp ? <IoCheckmarkOutline className="text-emerald-600" /> : <IoCopyOutline />}
+                          </button>
+                        </div>
+                      ) : (
+                        <span className="text-gray-400 italic">No network login recorded</span>
+                      )}
+                    </div>
+
+                    {/* Region Row */}
+                    <div className="flex items-center justify-between p-2.5 bg-gray-50 rounded-lg border border-gray-100">
+                      <span className="text-gray-500 font-medium flex items-center gap-1.5">
+                        <IoLocationOutline className="text-gray-400 text-sm" /> Region
+                      </span>
+                      <span className="font-medium text-gray-700 text-right">
+                        Philippines
+                      </span>
+                    </div>
+
+                    {/* Hardware Device Row */}
+                    <div className="flex items-center justify-between p-2.5 bg-gray-50 rounded-lg border border-gray-100">
+                      <span className="text-gray-500 font-medium flex items-center gap-1.5">
+                        {selectedStudent.lastDevice?.toLowerCase().includes("mobile") || selectedStudent.lastDevice?.toLowerCase().includes("phone") ? (
+                          <IoPhonePortraitOutline className="text-blue-500 text-sm" />
+                        ) : (
+                          <IoLaptopOutline className="text-indigo-500 text-sm" />
+                        )}
+                        Device Form Factor
+                      </span>
+                      <span className="font-semibold text-gray-700">
+                        {selectedStudent.lastDevice || "Unknown Device"}
+                      </span>
+                    </div>
+
+                    {/* Last Active Timestamp */}
+                    <div className="flex items-center justify-between p-2.5 bg-gray-50 rounded-lg border border-gray-100">
+                      <span className="text-gray-500 font-medium flex items-center gap-1.5">
+                        <IoTimeOutline className="text-gray-400 text-sm" /> Last Active
+                      </span>
+                      <span className="text-gray-600 font-mono text-[11px]">
+                        {selectedStudent.lastActiveAt
+                          ? new Date(selectedStudent.lastActiveAt).toLocaleString()
+                          : "Never"}
+                      </span>
+                    </div>
+                  </div>
                 </div>
 
                 {/* QR Code Section */}

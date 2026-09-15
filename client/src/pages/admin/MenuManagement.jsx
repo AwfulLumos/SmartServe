@@ -1,9 +1,11 @@
 import { useParams, Navigate } from "react-router-dom";
 import { MdPeopleOutline as IconStaff, MdMenuBook as IconMenu, MdHistoryEdu as IconAudit } from "react-icons/md";
+import { IoGitNetworkOutline as IconNetwork } from "react-icons/io5";
 import AdminLayout from "../../components/AdminLayout";
 import StaffTab from "../../components/admin/menu/StaffTab";
 import MenuTab from "../../components/admin/menu/MenuTab";
 import AuditLogTab from "../../components/admin/menu/AuditLogTab";
+import NetworkTab from "../../components/admin/menu/NetworkTab";
 
 const TAB_META = {
   staff: {
@@ -26,6 +28,13 @@ const TAB_META = {
     icon: <IconAudit className="text-3xl" />,
     description: "Track administrative actions, system events, and security logs in real time",
     breadcrumb: "Audit Log",
+  },
+  network: {
+    label: "Network & Security",
+    title: "Network Architecture & Security",
+    icon: <IconNetwork className="text-3xl" />,
+    description: "Manage campus VLANs, DHCP static hardware reservations, and Access Control List (ACL) policies",
+    breadcrumb: "Network & Security",
   },
 };
 
@@ -57,6 +66,7 @@ export default function MenuManagement() {
       {activeTab === "staff" && <StaffTab />}
       {activeTab === "menu" && <MenuTab />}
       {activeTab === "audit" && <AuditLogTab />}
+      {activeTab === "network" && <NetworkTab />}
     </AdminLayout>
   );
 }

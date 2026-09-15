@@ -21,6 +21,35 @@ const protect = async (req, res, next) => {
     if (!req.user) {
       return res.status(401).json({ message: "User not found" });
     }
+
+    // Auto-stamp client IP telemetry for active sessions if missing
+    if (!req.user.lastLoginIp) {
+      try {
+        const { extractClientIp, resolveIpLocation, parseDeviceFormFactor } = require("../utils/networkUtils");
+        const clientIp = extractClientIp(req);
+        const loc = resolveIpLocation(clientIp);
+        const device = parseDeviceFormFactor(req.headers["user-agent"]);
+        req.user.lastLoginIp = clientIp;
+        req.user.lastLoginRegion = loc.region;
+        req.user.lastDevice = device;
+        req.user.lastActiveAt = new Date();
+
+        User.updateOne(
+          { _id: req.user._id },
+          {
+            $set: {
+              lastLoginIp: clientIp,
+              lastLoginRegion: loc.region,
+              lastDevice: device,
+              lastActiveAt: new Date(),
+            },
+          }
+        ).catch(() => { });
+      } catch (err) {
+        // Silently continue if telemetry resolution fails
+      }
+    }
+
     next();
   } catch {
     res.status(401).json({ message: "Not authorized, invalid token" });

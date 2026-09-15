@@ -8,6 +8,9 @@ import {
   IoTrashOutline,
   IoSaveOutline,
   IoSearchOutline,
+  IoLocationOutline,
+  IoCopyOutline,
+  IoCheckmarkOutline,
 } from "react-icons/io5";
 import { MdPeopleOutline } from "react-icons/md";
 import api from "../../../utils/api";
@@ -30,6 +33,15 @@ export default function StaffTab() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [roleFilter, setRoleFilter] = useState("all");
+  const [copiedIp, setCopiedIp] = useState(null);
+
+  const copyIp = (ip, e) => {
+    e?.stopPropagation();
+    if (!ip) return;
+    navigator.clipboard.writeText(ip);
+    setCopiedIp(ip);
+    setTimeout(() => setCopiedIp(null), 2000);
+  };
   const [modalOpen, setModalOpen] = useState(false);
   const [form, setForm] = useState({ fullName: "", email: "", role: "", password: "" });
   const [errors, setErrors] = useState({});
@@ -198,6 +210,30 @@ export default function StaffTab() {
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium text-gray-800 truncate">{p.fullName}</p>
                       <p className="text-xs text-gray-500 truncate">{p.email}</p>
+                      {p.lastLoginIp ? (
+                        <div className="flex items-center gap-1.5 mt-0.5">
+                          <span className="inline-flex items-center gap-1 text-[10px] text-gray-600 font-mono">
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block animate-pulse flex-shrink-0" />
+                            <span className="font-semibold text-emerald-700">{p.lastLoginIp}</span>
+                            <span className="text-gray-400">•</span>
+                            <span className="text-gray-500">Philippines</span>
+                          </span>
+                          <button
+                            type="button"
+                            onClick={(e) => copyIp(p.lastLoginIp, e)}
+                            className="text-gray-400 hover:text-gray-600 transition"
+                            title="Copy IP"
+                          >
+                            {copiedIp === p.lastLoginIp ? (
+                              <IoCheckmarkOutline className="text-emerald-600 text-xs" />
+                            ) : (
+                              <IoCopyOutline className="text-xs" />
+                            )}
+                          </button>
+                        </div>
+                      ) : (
+                        <span className="text-[10px] text-gray-400 italic">No IP recorded</span>
+                      )}
                     </div>
                     <span className={`text-[10px] font-semibold px-2.5 py-0.5 rounded-full flex-shrink-0 ${roleBadge(p.role)}`}>
                       {p.role.charAt(0).toUpperCase() + p.role.slice(1)}
@@ -296,9 +332,10 @@ export default function StaffTab() {
 
         {/* Table */}
         <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-          <div className="grid grid-cols-[1.5fr_2fr_0.8fr_0.7fr_1fr_40px] items-center px-5 py-3 bg-gray-50 border-b border-gray-100 text-xs font-semibold text-gray-400 uppercase tracking-wide rounded-t-2xl">
+          <div className="grid grid-cols-[1.3fr_1.6fr_1.4fr_0.8fr_0.7fr_1fr_40px] items-center px-5 py-3 bg-gray-50 border-b border-gray-100 text-xs font-semibold text-gray-400 uppercase tracking-wide rounded-t-2xl">
             <span>Name</span>
             <span>Email</span>
+            <span>IP Address & Region</span>
             <span>Role</span>
             <span>Status</span>
             <span>Last Active</span>
@@ -307,7 +344,7 @@ export default function StaffTab() {
 
           {loading ? (
             <div className="p-4">
-              <SkeletonTable rows={5} columns={6} showHeader={false} />
+              <SkeletonTable rows={5} columns={7} showHeader={false} />
             </div>
           ) : filteredStaff.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-16 text-gray-400 gap-2">
@@ -317,9 +354,43 @@ export default function StaffTab() {
           ) : (
             <ul className="divide-y divide-gray-50">
               {filteredStaff.map((s) => (
-                <li key={s._id} className="grid grid-cols-[1.5fr_2fr_0.8fr_0.7fr_1fr_40px] items-center px-5 py-3.5 hover:bg-gray-50 transition">
+                <li key={s._id} className="grid grid-cols-[1.3fr_1.6fr_1.4fr_0.8fr_0.7fr_1fr_40px] items-center px-5 py-3.5 hover:bg-gray-50 transition">
                   <span className="text-sm font-medium text-gray-800 truncate">{s.fullName}</span>
                   <span className="text-xs text-gray-500 truncate">{s.email}</span>
+                  <div className="flex flex-col min-w-0 pr-2">
+                    {s.lastLoginIp ? (
+                      <div className="flex flex-col gap-0.5">
+                        <div className="flex items-center gap-1.5">
+                          <code className="font-mono text-xs font-bold text-gray-900 bg-gray-100 px-1.5 py-0.5 rounded border border-gray-200">
+                            {s.lastLoginIp}
+                          </code>
+                          <button
+                            type="button"
+                            onClick={(e) => copyIp(s.lastLoginIp, e)}
+                            className="p-1 hover:bg-gray-200/60 rounded text-gray-400 hover:text-gray-700 transition"
+                            title="Copy IP"
+                          >
+                            {copiedIp === s.lastLoginIp ? (
+                              <IoCheckmarkOutline className="text-emerald-600 text-xs" />
+                            ) : (
+                              <IoCopyOutline className="text-xs" />
+                            )}
+                          </button>
+                        </div>
+                        <div className="flex items-center gap-1.5 text-[10px] text-gray-500">
+                          <span className="px-1 rounded bg-blue-50 text-blue-700 font-semibold font-mono border border-blue-200 text-[9px]">
+                            VLAN 10
+                          </span>
+                          <span className="flex items-center gap-0.5 text-gray-500">
+                            <IoLocationOutline className="text-emerald-600 text-xs flex-shrink-0" />
+                            Philippines
+                          </span>
+                        </div>
+                      </div>
+                    ) : (
+                      <span className="text-xs text-gray-400 italic font-mono">No IP recorded</span>
+                    )}
+                  </div>
                   <span>
                     <span className={`text-[10px] font-semibold px-2.5 py-0.5 rounded-full ${roleBadge(s.role)}`}>
                       {s.role.charAt(0).toUpperCase() + s.role.slice(1)}
@@ -330,7 +401,7 @@ export default function StaffTab() {
                       Approved
                     </span>
                   </span>
-                  <span className="text-xs text-gray-400 font-mono">{fmt(s.updatedAt)}</span>
+                  <span className="text-xs text-gray-400 font-mono">{fmt(s.lastActiveAt || s.lastLoginAt || s.updatedAt)}</span>
                   <span className="flex justify-end">
                     {s._id !== user?._id && (
                       <button

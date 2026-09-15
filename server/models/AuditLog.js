@@ -13,7 +13,7 @@ const auditLogSchema = new mongoose.Schema(
     description: { type: String, default: "" },
     category: {
       type: String,
-      enum: ["auth", "student", "inventory", "menu", "order", "reward", "byoc", "config", "system"],
+      enum: ["auth", "student", "inventory", "menu", "order", "reward", "byoc", "config", "network", "system"],
       default: "system",
     },
     meta: { type: mongoose.Schema.Types.Mixed, default: {} },

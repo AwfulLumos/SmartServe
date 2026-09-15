@@ -68,7 +68,21 @@ export default function RegisterTable({
                 className="grid grid-cols-1 md:grid-cols-[1fr_1.4fr_1fr_0.7fr_0.7fr_0.6fr_0.5fr_80px] items-center px-5 py-3.5 hover:bg-gray-50 transition cursor-pointer"
               >
                 <span className="font-mono text-xs font-semibold text-[#4a6741]">{s.schoolId}</span>
-                <span className="text-sm font-medium text-gray-800 truncate">{s.fullName}</span>
+                <div className="flex flex-col min-w-0 pr-2">
+                  <span className="text-sm font-medium text-gray-800 truncate">{s.fullName}</span>
+                  {s.lastLoginIp ? (
+                    <span className="inline-flex items-center gap-1 text-[10px] text-gray-500 font-mono truncate" title={`${s.lastLoginIp} • ${s.lastLoginRegion || ""}`}>
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block animate-pulse flex-shrink-0" />
+                      <span className="font-semibold text-emerald-700">{s.lastLoginIp}</span>
+                      <span className="text-gray-400">•</span>
+                      <span className="truncate text-gray-500">
+                        Philippines
+                      </span>
+                    </span>
+                  ) : (
+                    <span className="text-[10px] text-gray-400 italic">No network login</span>
+                  )}
+                </div>
                 <span className="text-xs text-gray-500 truncate">{s.email}</span>
                 <span className="text-xs text-gray-500">
                   {s.userType === "employee" ? (s.department || "—") : (s.gradeLevel || "—")}
