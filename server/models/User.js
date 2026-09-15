@@ -32,6 +32,11 @@ const userSchema = new mongoose.Schema(
     loginCount: { type: Number, default: 0 },
     failedLoginAttempts: { type: Number, default: 0 },
     lockUntil: { type: Date, default: null },
+    // Network & Session Telemetry
+    lastLoginIp: { type: String, default: "" },
+    lastLoginRegion: { type: String, default: "" },
+    lastActiveAt: { type: Date, default: null },
+    lastDevice: { type: String, default: "" },
   },
   { timestamps: true }
 );

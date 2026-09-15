@@ -1,3 +1,4 @@
+import { createPortal } from "react-dom";
 import {
   IoHelpCircleOutline,
   IoCloseOutline,
@@ -13,9 +14,9 @@ import {
 export default function AnalyticsGuideModal({ isOpen, onClose }) {
   if (!isOpen) return null;
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/60 backdrop-blur-sm">
-      <div className="bg-white rounded-3xl shadow-xl w-full max-w-3xl overflow-hidden max-h-[85vh] flex flex-col border border-gray-100">
+  return createPortal(
+    <div className="fixed inset-0 z-[999] flex items-center justify-center p-4 bg-gray-900/60 backdrop-blur-sm">
+      <div className="bg-white rounded-3xl shadow-xl w-full max-w-3xl overflow-hidden max-h-[85vh] flex flex-col border border-gray-100 relative z-10">
         {/* Modal Header */}
         <div className="bg-[#4a6741] text-white px-6 py-5 flex items-center justify-between">
           <div className="flex items-center gap-2.5">
@@ -199,6 +200,7 @@ export default function AnalyticsGuideModal({ isOpen, onClose }) {
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

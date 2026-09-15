@@ -60,6 +60,9 @@ app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ limit: "10mb", extended: true }));
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
+const { aclMiddleware } = require("./middleware/aclMiddleware");
+app.use(aclMiddleware);
+
 // Routes
 app.use("/api/auth", require("./routes/authRoutes"));
 app.use("/api/student/auth", require("./routes/studentAuthRoutes"));
@@ -76,6 +79,7 @@ app.use("/api/audit-logs", require("./routes/auditLogRoutes"));
 app.use("/api/dashboard", require("./routes/dashboardRoutes"));
 app.use("/api/notifications", require("./routes/notificationRoutes"));
 app.use("/api/feedback", require("./routes/feedbackRoutes"));
+app.use("/api/network", require("./routes/networkRoutes"));
 
 // Health check
 app.get("/api/health", (req, res) => {

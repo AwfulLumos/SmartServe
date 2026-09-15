@@ -5,6 +5,7 @@ const jwt = require("jsonwebtoken");
 const Student = require("../models/Student");
 const { sendResetCode } = require("../config/mailer");
 const logAudit = require("../utils/auditLogger");
+const { extractClientIp, resolveIpLocation, parseDeviceFormFactor } = require("../utils/networkUtils");
 
 const generateToken = (id) =>
   jwt.sign({ id, type: "student" }, process.env.JWT_SECRET, { expiresIn: "7d" });
@@ -27,6 +28,10 @@ const toStudentAuthPayload = (student, token) => {
     profileImage: student.profileImage || "",
     qrToken: student.qrToken,
     createdAt: student.createdAt,
+    lastLoginIp: student.lastLoginIp || "",
+    lastLoginRegion: student.lastLoginRegion || "",
+    lastActiveAt: student.lastActiveAt || null,
+    lastDevice: student.lastDevice || "",
   };
 
   if (token) payload.token = token;
@@ -86,9 +91,18 @@ exports.login = async (req, res) => {
       return res.status(403).json({ message: "Your account has been deactivated. Please contact your school administrator." });
     }
 
-    // Reset lockout counters on success
+    // Extract client network telemetry
+    const clientIp = extractClientIp(req);
+    const locationInfo = resolveIpLocation(clientIp);
+    const deviceType = parseDeviceFormFactor(req.headers["user-agent"]);
+
+    // Reset lockout counters and stamp network telemetry
     student.failedLoginAttempts = 0;
     student.lockUntil = null;
+    student.lastLoginIp = clientIp;
+    student.lastLoginRegion = locationInfo.region;
+    student.lastActiveAt = new Date();
+    student.lastDevice = deviceType;
     await student.save({ validateBeforeSave: false });
 
     logAudit({
@@ -96,8 +110,15 @@ exports.login = async (req, res) => {
       actorType: "student",
       actorId: student._id,
       actorName: student.fullName,
-      description: `${student.fullName} (${student.schoolId}) signed in`,
+      description: `${student.fullName} (${student.schoolId}) signed in from ${clientIp} (${locationInfo.zone})`,
       category: "auth",
+      meta: {
+        clientIp,
+        region: locationInfo.region,
+        zone: locationInfo.zone,
+        vlanId: locationInfo.vlanId,
+        device: deviceType,
+      },
     });
 
     const token = generateToken(student._id);

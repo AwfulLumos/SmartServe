@@ -10,6 +10,7 @@ import AdminLowStockAlert from "../../components/admin/dashboard/AdminLowStockAl
 import AdminRecentOrdersTable from "../../components/admin/dashboard/AdminRecentOrdersTable";
 import AdminQuickActions from "../../components/admin/dashboard/AdminQuickActions";
 import AdminRecentRedemptions from "../../components/admin/dashboard/AdminRecentRedemptions";
+import AdminNetworkTelemetryTable from "../../components/admin/dashboard/AdminNetworkTelemetryTable";
 
 export default function AdminDashboard() {
   const { user } = useAuth();
@@ -59,21 +60,26 @@ export default function AdminDashboard() {
           navigate={navigate}
         />
 
-        <div className="grid grid-cols-1 xl:grid-cols-[1fr_320px] gap-6">
-          <AdminRecentOrdersTable
-            recentOrders={data?.recentOrders}
-            loading={loading}
+        {/* Full-width Table: Recent Orders */}
+        <AdminRecentOrdersTable
+          recentOrders={data?.recentOrders}
+          loading={loading}
+          navigate={navigate}
+        />
+
+        {/* Full-width Table: Campus Network & IP Telemetry */}
+        <AdminNetworkTelemetryTable
+          navigate={navigate}
+        />
+
+        {/* Bottom 2 Boxes: Quick Actions (left) & Recent Redemptions (right) */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <AdminQuickActions navigate={navigate} />
+
+          <AdminRecentRedemptions
+            recentRedemptions={data?.recentRedemptions}
             navigate={navigate}
           />
-
-          <div className="flex flex-col gap-6">
-            <AdminQuickActions navigate={navigate} />
-
-            <AdminRecentRedemptions
-              recentRedemptions={data?.recentRedemptions}
-              navigate={navigate}
-            />
-          </div>
         </div>
       </div>
     </AdminLayout>
