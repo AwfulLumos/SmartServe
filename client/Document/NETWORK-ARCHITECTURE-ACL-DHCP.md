@@ -5,41 +5,48 @@
 
 ---
 
+> ### Implementation Scope & Educational Modeling Disclaimer
+> **Notice for Evaluators & Capstone Panelists:**  
+> SmartServe is a full-stack software application built on a Node.js/Express backend, MongoDB database, and React frontend. This project models enterprise networking concepts—including 802.1Q-style VLAN subnet segmentation, Layer 3/4 Access Control Lists (ACLs), and DHCP MAC-to-IP reservation tracking—**at the application layer for educational and demonstrative purposes**.  
+> The system does **not** configure or manage physical networking hardware (such as physical managed switches, hardware routers, or bare-metal DHCP daemons). All packet inspection, CIDR subnet matching, and traffic filtering are executed in application logic via custom Express middleware and MongoDB schemas.
+
+---
+
 ## Executive Summary
 
-This document details the **Computer Networking Infrastructure and Policy Enforcement Subsystem** integrated into **SmartServe**.
+This document details the **Network Architecture, Application-Level Policy Enforcement, and Telemetry Subsystem** integrated into **SmartServe**.
 
-In the SmartServe school ecosystem, network users are strictly partitioned into two operational user groups:
+In the SmartServe school ecosystem, network users are logically partitioned into two operational user groups:
 1. **Administrators & Staff** (Operating desktop PCs and management laptops in cafeteria offices)
 2. **Students** (Accessing the cafeteria web application and BYOC points via personal smartphones over campus Wi-Fi)
 
-To protect administrative controls, student account records, and cafeteria inventory from unauthorized access or network saturation during peak lunch rush periods, SmartServe implements:
-1. **IEEE 802.1Q VLAN Subnet Segmentation** (Campus zoning strictly separating Admin Management devices from Student BYOD smartphones).
-2. **Layer 3 & 4 Network Access Control Lists (ACL)** (CIDR-based request evaluation, route wildcard matching, and automated security incident logging).
-3. **Static DHCP Reservations (MAC-to-IP Binding)** (Hardware-level device authentication for administrative PCs and management laptops).
-4. **Interactive Network Management Dashboard & Packet Simulator** (Full admin observability at `/dashboard/settings/network`).
+To model how administrative controls, student account records, and cafeteria inventory would be protected from unauthorized access or network saturation in a segmented campus environment, SmartServe implements:
+1. **VLAN-style subnet segmentation (modeled in application logic)** (Logical zoning separating Admin Management endpoints from Student BYOD smartphones).
+2. **Application-Layer Access Control Lists (ACL)** (Bitwise CIDR-based request evaluation, route wildcard matching, and automated security incident logging).
+3. **Simulated DHCP reservation system** (Application-level MAC-to-IP binding and device station records for administrative PCs and management laptops).
+4. **Interactive Network Management Dashboard & Packet Simulator** (Full admin observability and rule-tracing UI at `/dashboard/settings/network`).
 
 ---
 
 ## 1. Campus VLAN & Subnet Addressing Scheme
 
-The campus network is segmented into two dedicated Virtual Local Area Networks (VLANs) interconnected through a Layer 3 Managed Switch and Core Router Gateway:
+The campus network architecture is modeled after a two-tier segmentation scheme, represented as a conceptual network topology in the SmartServe dashboard:
 
 | VLAN ID | Segment Name | Subnet (CIDR) | Subnet Mask | Default Gateway | Address Allocation Strategy | Access Policy |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
-| **VLAN 10** | Admin & Management | `192.168.1.0/24` | `255.255.255.0` | `192.168.1.1` | Static Manual / DHCP Reservation (`.50 - .100`) | Unrestricted Admin & Database Access |
-| **VLAN 20** | Student Mobile Wi-Fi (BYOD) | `172.16.0.0/20` | `255.255.240.0` | `172.16.0.1` | Dynamic DHCP Pool (2-Hour Short Lease Turnover) | Strictly Student Portal (`/api/student/*`) |
+| **VLAN 10** | Admin & Management | `192.168.1.0/24` | `255.255.255.0` | `192.168.1.1` | Application-level static reservation (`.50 - .100`) | Unrestricted Admin & Management Access |
+| **VLAN 20** | Student Mobile Wi-Fi (BYOD) | `172.16.0.0/20` | `255.255.240.0` | `172.16.0.1` | Simulated Dynamic DHCP Pool (modeled 2-Hour lease turnover) | Strictly Student Portal (`/api/student/*`) |
 
-### Key Architectural Benefits:
-- **Zero Lunch-Rush Congestion**: When hundreds of students connect to Wi-Fi at 12:00 PM to view points, menu items, or order food, Admin PC traffic on VLAN 10 is isolated at Layer 2/3, maintaining sub-10ms network latency.
-- **DHCP Pool Longevity**: Student BYOD Wi-Fi utilizes a `/20` subnet (4,094 usable IP addresses) paired with a **short 2-hour lease time**. As students leave the cafeteria, inactive leases are recycled immediately, preventing pool starvation.
-- **Air-Gapped Admin Surface**: Even if a student is connected to the cafeteria Wi-Fi, router ACLs deny traffic between VLAN 20 and administrative endpoints.
+### Architectural Design Objectives:
+- **Traffic Isolation Design**: In an enterprise campus deployment with 802.1Q switches, separating student Wi-Fi traffic from administrative office traffic isolates broadcast domains and prevents lunch-rush congestion from impacting business operations. SmartServe models this division at the software level, enforcing that requests originating from student IP ranges cannot access management endpoints.
+- **DHCP Subnet Capacity Planning**: The student BYOD Wi-Fi network is designed with a `/20` subnet (4,094 usable IP addresses) paired with a conceptual short 2-hour lease duration. In an actual campus cafeteria, high turnover during lunch periods requires short lease recycling to prevent pool exhaustion; SmartServe reflects this design in its network configuration schema.
+- **Application-Enforced Subnet Isolation**: Even if a student device on the Wi-Fi network attempts to query administrative API endpoints, SmartServe's ACL middleware evaluates the source IP CIDR and blocks the request before it reaches business logic or database layers.
 
 ---
 
 ## 2. Access Control List (ACL) Engine
 
-The SmartServe backend features an in-memory cached Layer 3/4 packet inspection middleware (`aclMiddleware.js`) that evaluates incoming requests against active ACL rules.
+The SmartServe backend features an in-memory cached request inspection middleware (`aclMiddleware.js`) that evaluates incoming HTTP requests against active ACL rules defined in MongoDB.
 
 ### Default ACL Rule Table (Ordered by Priority)
 
@@ -53,69 +60,74 @@ The SmartServe backend features an in-memory cached Layer 3/4 packet inspection 
 | **#60** | `Deny-Student-Points-Config` | **DENY** | `172.16.0.0/20` | `/api/points-config/*` | ALL | Prevents tampering with BYOC eco points multiplier configuration. |
 
 ### Rule Evaluation Algorithm
-1. **Normalization**: Client IP is extracted (accounting for reverse proxies, `X-Forwarded-For`, and optional `X-Simulated-IP` developer headers) and normalized from IPv6-mapped IPv4.
-2. **Priority Walk**: Rules are sorted by `priority ASC`. The first matching rule evaluates method, path wildcard, and CIDR range.
+1. **IP Normalization & Extraction**: The client IP address is extracted from `req.ip` or the `X-Forwarded-For` header (with support for developer override via `X-Simulated-IP`) and normalized by stripping IPv6 prefixes (`::ffff:`).
+2. **Priority Walk**: Active rules are sorted by `priority ASC` (lowest number evaluated first). The engine evaluates:
+   - **HTTP Method Match**: Checks if the request method matches the rule method (`ALL`, `GET`, `POST`, etc.).
+   - **Route Wildcard Match**: Evaluates request path against the rule route pattern using wildcard matching (e.g., `/api/student/*`).
+   - **Bitwise CIDR Subnet Match**: Converts the IPv4 string to a 32-bit unsigned integer and performs a bitwise AND operation against the subnet mask.
 3. **Execution**:
-   - **ALLOW**: Request proceeds normally (`next()`).
-   - **DENY**: Increments rule hit counters, writes a dropped packet log into MongoDB `AuditLog` under category `"network"`, emits a live alert to the admin Socket.IO room (`acl:blocked`), and responds with `HTTP 403 Forbidden` (`code: "NETWORK_ACL_VIOLATION"`).
+   - **ALLOW**: The request proceeds to the next Express handler (`next()`).
+   - **DENY**: Increments rule hit counters, records an incident in MongoDB `AuditLog` under category `"network"`, emits a real-time Socket.IO alert (`network:acl_blocked`) to connected admin clients, and terminates the request with `HTTP 403 Forbidden` (`code: "NETWORK_ACL_VIOLATION"`).
 
 ### Operating Modes:
-- **`audit_only` (Default / Safe)**: Logs all violations to the audit log without dropping the connection. Allows testing policies without risk of accidental lockout.
-- **`enforce` (Strict Enterprise)**: Actively drops packets with `HTTP 403 Forbidden`.
-- **`disabled`**: Bypasses the ACL engine entirely.
+- **`audit_only` (Default / Safe)**: Evaluates rules and logs violations to the audit trail with an `X-ACL-Warning` header, but permits the request through. This allows testing new rules without accidental administrative lockouts.
+- **`enforce` (Active Enforcement)**: Actively drops matching forbidden requests with `HTTP 403 Forbidden`.
+- **`disabled`**: Bypasses the ACL evaluation engine entirely for debugging.
 
 ---
 
-## 3. DHCP Subsystem & Physical Station Reservations
+## 3. Simulated DHCP Reservation System & Device Station Management
 
-Admin workstations and staff management laptops use static DHCP reservations so they always maintain permanent, deterministic IP addresses bound to their physical MAC addresses.
+To model hardware-level device authentication, SmartServe maintains an application-level DHCP reservation database (`DhcpReservation` collection) that binds authorized hardware MAC addresses to dedicated IP addresses.
+
+> **Implementation Note:** This is an application-level device registry and status tracker. SmartServe does not run a bare-metal DHCP server daemon (such as ISC-DHCP or dnsmasq) that listens on UDP port 67/68.
 
 ### Registered Hardware Stations
 
 | Station Name | Hardware Type | MAC Address | Reserved IP | Assigned VLAN | Lease Duration | Status |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
-| **Admin Management Workstation (PC)** | Admin Desktop PC | `00:50:56:A3:B1:00` | `192.168.1.50` | VLAN 10 | Permanent | Online |
-| **Admin Management Laptop** | Admin Laptop | `B8:27:EB:4A:8F:11` | `192.168.1.51` | VLAN 10 | Permanent | Online |
+| **Admin Management Workstation (PC)** | Admin Desktop PC | `00:50:56:A3:B1:00` | `192.168.1.50` | VLAN 10 | Static Reservation | Online |
+| **Admin Management Laptop** | Admin Laptop | `B8:27:EB:4A:8F:11` | `192.168.1.51` | VLAN 10 | Static Reservation | Online |
 
-### Hardware Station Ping & Telemetry
-Admins can send synthetic ICMP ping packets directly from the dashboard:
-- Computes round-trip latency (RTT: `0.8ms - 4.3ms` over local Gigabit LAN).
-- Validates 0% packet loss and IP Time-to-Live (`TTL=64`).
-- Updates `lastSeen` timestamp and station health status in real time.
+### Simulated Station Ping & Telemetry
+Administrators can test station availability from the dashboard using the built-in station ping feature (`POST /api/network/dhcp/:id/ping`):
+- **Simulated RTT Calculation**: Generates simulated local LAN latency telemetry (randomized between `0.8ms - 4.3ms` for demonstration).
+- **Simulated Packet Metrics**: Returns simulated `0%` packet loss and a standard mock `TTL=64`.
+- **Heartbeat Update**: Updates the station's `lastSeen` timestamp and `status` in MongoDB, demonstrating how network management consoles track device uptime.
 
 ---
 
 ## 4. Admin Management Dashboard (`/dashboard/settings/network`)
 
-Admins and system evaluators can manage the entire network stack directly in the UI:
-1. **Topology Visualizer**: Graphical view of the Campus Gateway Router, Core Switch, and 2 active VLAN nodes (Admin VLAN 10 and Student Mobile Wi-Fi VLAN 20).
-2. **DHCP Station Manager**: CRUD interface to register admin workstations, bind MAC addresses, and ping live hardware.
-3. **ACL Rule Editor**: Modify rule priorities, change actions (`ALLOW`/`DENY`), toggle rules on/off, or switch security modes (`Audit-Only` vs. `Enforce`).
+Administrators and evaluators can observe and configure the network subsystem directly in the web UI:
+1. **Conceptual Topology Visualizer**: Visual representation of the campus gateway router, core switch, and active VLAN segments (Admin VLAN 10 and Student Wi-Fi VLAN 20).
+2. **DHCP Station Manager**: CRUD interface to register admin devices, track MAC-to-IP bindings, and trigger station ping simulations.
+3. **ACL Rule Editor**: Modify rule priorities, configure `ALLOW`/`DENY` actions, toggle rules on/off, or switch global security modes (`Audit-Only` vs. `Enforce`).
 4. **Interactive Packet Simulator**:
-   - Allows typing any IP address (or choosing presets like *"Student on Wi-Fi"*) and target API route.
-   - Shows instantaneous verdicts (`PERMITTED` or `DROPPED`) and provides a detailed step-by-step trace showing which rules matched and why.
-5. **Live ACL Block Logs**: Real-time log of security events and unauthorized packet attempts.
-6. **Connected Users & IP Tracker (Sub-Tab 6)**: Real-time table of active student and staff sessions, IP addresses, VLAN tags, and 1-click "Simulate" ACL packet test button.
-7. **In-App Network & Security Guide**: Interactive modal with full architectural diagrams, subnet tables, simulation tutorials, and evaluation defense scripts.
+   - Allows entering an arbitrary source IP address (or choosing quick presets such as *"Student on Wi-Fi"*) and target API path.
+   - Executes the exact bitwise CIDR matching logic as the live middleware and renders a step-by-step evaluation trace showing which rules matched and why.
+5. **Live ACL Block Logs**: Real-time table of dropped requests and policy violations stored in MongoDB.
+6. **Connected Users & IP Tracker (Sub-Tab 6)**: Real-time table of active student and staff sessions, showing live IP addresses, mapped VLAN tags, and a 1-click "Simulate" packet testing button.
+7. **In-App Network & Security Guide**: Interactive modal providing architectural documentation, subnet tables, simulation instructions, and capstone presentation notes.
 
 ---
 
 ## 5. Connected Users & Real-Time IP Telemetry Tracking
 
-To provide administrators with continuous situational awareness of campus network activity, SmartServe captures and resolves live client connection telemetry across all student and administrator authentication flows:
+SmartServe captures real client connection telemetry during user authentication and session activity:
 
 ### Telemetry Pipeline
-1. **IP Extraction & Normalization**: The system extracts client IP addresses (handling `X-Forwarded-For`, reverse proxies, and local development loopback) and strips IPv6 wrappers (`::ffff:`).
-2. **Region & Location Resolution**:
-   - Recognized Philippine client IPs and external public connections cleanly resolve to **"Philippines"**.
-   - Private subnets map to their respective campus segments (`172.16.0.0/20` for Student Wi-Fi, `192.168.1.0/24` for Admin LAN).
-3. **Hardware Form Factor Classification**: User-Agent headers are parsed to differentiate between **Smartphones (Mobile)** and **Desktop PCs / Laptops**.
-4. **Session Aggregation API (`GET /api/network/sessions`)**: Aggregates active student and staff sessions sorted by `lastActive DESC` with live counters for Wi-Fi vs. LAN clients.
+1. **IP Extraction & Normalization**: Extracts the client IP from `req.ip` or `X-Forwarded-For`, strips IPv6 notation, and normalizes loopback addresses.
+2. **Subnet Zone Resolution**:
+   - Private subnets map to campus zones (`172.16.0.0/20` maps to VLAN 20 Student Wi-Fi; `192.168.1.0/24` maps to VLAN 10 Admin LAN).
+   - Public external IP addresses resolve to **"Philippines"** based on geographic classification.
+3. **Device Classification**: Parses the HTTP `User-Agent` header to categorize clients into **Smartphones (Mobile)** or **Desktop PCs / Laptops**.
+4. **Session Aggregation API (`GET /api/network/sessions`)**: Aggregates active student and staff accounts sorted by `lastActive DESC` with live counters for Wi-Fi vs. LAN clients.
 
 ### UI Touchpoints
-- **Main Admin Dashboard**: A dedicated, full-width **Campus Network & IP Telemetry** table positioned directly below Recent Orders, featuring live counters (`X Wi-Fi`, `Y LAN`), user roles, monospace IP containers with copy buttons, region badges (**Philippines**), hardware icons, and activity timestamps.
+- **Main Admin Dashboard**: A full-width **Campus Network & IP Telemetry** table positioned below Recent Orders, featuring live client counters (`X Wi-Fi`, `Y LAN`), role badges, monospace IP containers, location badges (**Philippines**), and activity timestamps.
 - **Network & Security Tracker Tab**: Sub-Tab 6 (**Connected Users & IP Tracker**) with search filtering and direct integration into the Packet Simulator.
-- **Student Accounts Table & Profile Lookup**: Displays live IP addresses, **Philippines** region badges, and dedicated network telemetry cards within student profile drawers.
+- **Student Accounts & Profile Lookup**: Displays client IP addresses, location badges, and network telemetry cards within student profile drawers.
 
 ---
 
@@ -123,22 +135,23 @@ To provide administrators with continuous situational awareness of campus networ
 
 ### Backend Files
 - `server/models/NetworkAcl.js` — Mongoose schema for ACL policies.
-- `server/models/DhcpReservation.js` — Mongoose schema for DHCP static reservations.
-- `server/models/NetworkConfig.js` — Mongoose schema for VLAN subnets and global mode.
-- `server/models/AuditLog.js` — Updated with `"network"` category enum.
-- `server/models/Student.js` & `server/models/User.js` — Updated with `lastLoginIp`, `lastLoginRegion`, `lastActiveAt`, and `lastDevice`.
-- `server/utils/networkUtils.js` — IP normalization, bitwise CIDR calculator, route wildcard matcher, `resolveIpLocation()`, and `parseDeviceFormFactor()`.
-- `server/middleware/aclMiddleware.js` — Express ACL firewall engine with caching and audit hooks.
-- `server/controllers/networkController.js` — REST API controllers for overview, DHCP, ACL, simulation, connected sessions, and logs.
-- `server/routes/networkRoutes.js` — Protected API endpoints under `/api/network` (including `/sessions`).
-- `server/index.js` — Mounted ACL middleware and network route handlers.
+- `server/models/DhcpReservation.js` — Mongoose schema for simulated DHCP static reservations and device records.
+- `server/models/NetworkConfig.js` — Mongoose schema for VLAN subnet configurations and global security modes.
+- `server/models/AuditLog.js` — System audit log schema with `"network"` category enum.
+- `server/models/Student.js` & `server/models/User.js` — Schemas tracking `lastLoginIp`, `lastLoginRegion`, `lastActiveAt`, and `lastDevice`.
+- `server/utils/networkUtils.js` — Bitwise CIDR matching, IP normalization, route wildcard matching, and `resolveIpLocation()`.
+- `server/middleware/aclMiddleware.js` — Express ACL middleware performing application-layer packet inspection, in-memory caching, and audit logging.
+- `server/controllers/networkController.js` — REST API controllers for network overview, DHCP reservations, ACL rules, packet simulation, and session telemetry.
+- `server/routes/networkRoutes.js` — Protected API endpoints under `/api/network`.
+- `server/index.js` — Registers ACL middleware and mounts network route handlers.
 
 ### Frontend Files
-- `client/src/components/admin/menu/NetworkTab.jsx` — Complete Network Dashboard UI with Topology, DHCP, ACL, Simulator, Logs, and Connected Users & IP Tracker.
-- `client/src/components/admin/menu/NetworkGuideModal.jsx` — In-app interactive guide modal with architecture, step-by-step instructions, and defense script.
+- `client/src/components/admin/menu/NetworkTab.jsx` — Network Dashboard UI with Topology, DHCP Manager, ACL Editor, Simulator, Logs, and Connected Users & IP Tracker.
+- `client/src/components/admin/menu/NetworkGuideModal.jsx` — In-app interactive guide modal with purpose, architecture, and step-by-step instructions for all features.
 - `client/src/components/admin/dashboard/AdminNetworkTelemetryTable.jsx` — Full-width dashboard tableview displaying live client sessions and IP telemetry.
-- `client/src/pages/admin/AdminDashboard.jsx` — Positioned network table below Recent Orders with balanced Quick Actions & Redemptions grid.
-- `client/src/components/admin/registerStudent/UserLookupPanel.jsx` — Added Network Telemetry card to student details side panel.
-- `client/src/components/admin/registerStudent/RegisterTable.jsx` — Added live IP address and Philippines region badge under student names.
-- `client/src/pages/admin/MenuManagement.jsx` — Registered `network` tab in settings navigation.
-- `client/src/components/AdminLayout.jsx` — Added "Network & Security" link to the primary admin sidebar.
+- `client/src/pages/admin/AdminDashboard.jsx` — Positions network telemetry table on the primary admin dashboard.
+- `client/src/components/admin/registerStudent/UserLookupPanel.jsx` — Network telemetry display within student details panel.
+- `client/src/components/admin/registerStudent/RegisterTable.jsx` — IP address and region display under student account rows.
+- `client/src/pages/admin/MenuManagement.jsx` — Registers the `network` tab in admin navigation.
+- `client/src/components/AdminLayout.jsx` — Network & Security navigation item in the admin sidebar.
+

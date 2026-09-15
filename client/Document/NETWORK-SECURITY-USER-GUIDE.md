@@ -6,11 +6,16 @@
 
 ---
 
+> ### Architectural Note for Evaluators
+> SmartServe models campus network architecture (VLAN segmentation, DHCP reservations, and ACL policies) at the **application layer**. Packet inspection, CIDR evaluations, and route filtering are executed directly in Node.js/Express middleware and visualized through an interactive React dashboard. The system does not configure physical network switches or run a bare-metal DHCP daemon.
+
+---
+
 ## Table of Contents
 1. [Overview & Access](#1-overview--access)
 2. [Global Security Modes (Enforce vs. Audit-Only)](#2-global-security-modes)
 3. [Tab 1: Campus Network Topology & VLANs](#3-tab-1-campus-network-topology--vlans)
-4. [Tab 2: DHCP Reservations & Hardware Station Manager](#4-tab-2-dhcp-reservations--hardware-station-manager)
+4. [Tab 2: Simulated DHCP Reservations & Station Manager](#4-tab-2-simulated-dhcp-reservations--station-manager)
 5. [Tab 3: Access Control Lists (ACL) Policy Editor](#5-tab-3-access-control-lists-acl-policy-editor)
 6. [Tab 4: Interactive Packet Tester & Simulator](#6-tab-4-interactive-packet-tester--simulator)
 7. [Tab 5: Live ACL Block Logs & Incident Audit](#7-tab-5-live-acl-block-logs--incident-audit)
@@ -22,11 +27,11 @@
 
 ## 1. Overview & Access
 
-The **Network & Security** dashboard provides cafeteria administrators and network engineers with centralized visibility and policy enforcement over all devices communicating with SmartServe.
+The **Network & Security** dashboard provides cafeteria administrators and evaluators with centralized visibility and policy enforcement over devices communicating with the SmartServe application.
 
 ### How to Navigate to the Page:
 1. Log into SmartServe with an **Admin Account** at `/login`.
-2. On the left sidebar navigation, click on **"Network & Security"** (with the network fork icon).
+2. On the left sidebar navigation, click on **"Network & Security"** (network fork icon).
 3. Alternatively, navigate directly in your browser to:  
    `http://localhost:5173/dashboard/settings/network`
 
@@ -34,59 +39,62 @@ The **Network & Security** dashboard provides cafeteria administrators and netwo
 
 ## 2. Global Security Modes
 
-Located in the top-left summary card, this dropdown controls how the firewall engine treats incoming packets:
+Located in the top-left summary card, this dropdown controls how the application firewall engine evaluates incoming HTTP requests:
 
 ```
 ┌─────────────────────────────────────────┐
 │ SECURITY MODE                           │
 │ [ Audit-Only (Safe)                  ▼] │
-│ • 3 Online Stations   • 7 ACL Rules     │
+│ • 2 Online Stations   • 6 ACL Rules     │
 │ • 0 Blocked Packets (Real-time Active)  │
 └─────────────────────────────────────────┘
 ```
 
 | Mode | Behavior | Recommended Use Case |
 | :--- | :--- | :--- |
-| **Audit-Only (Safe)** *(Default)* | Requests that violate ACL rules are **permitted through**, but a warning header `X-ACL-Warning` is attached and an incident log is recorded in MongoDB. | **Testing & Development**: Allows testing ACL rules without accidentally locking out staff during counter hours. |
-| **Enforce (Strict)** | Requests that violate ACL rules are **immediately dropped** with `HTTP 403 Forbidden` (`code: "NETWORK_ACL_VIOLATION"`). | **Production**: Full zero-trust campus security. Students cannot hit staff APIs even if they find the URL or intercept a token. |
-| **Disabled** | Completely bypasses the ACL evaluation engine for maximum throughput. | High-volume debugging or offline maintenance. |
+| **Audit-Only (Safe)** *(Default)* | Requests that violate ACL rules are **permitted through**, but an `X-ACL-Warning` header is attached and an incident log is recorded in MongoDB. | **Testing & Evaluation**: Allows testing ACL rule logic without locking out staff during active cafeteria service. |
+| **Enforce (Active)** | Requests that violate ACL rules are **actively blocked** with `HTTP 403 Forbidden` (`code: "NETWORK_ACL_VIOLATION"`). | **Production Enforcement**: Active application-layer traffic restriction. Requests from student IP ranges cannot access management endpoints. |
+| **Disabled** | Completely bypasses the ACL evaluation engine. | Troubleshooting, benchmarking, or local development. |
 
-> **Localhost Protection**: In development mode, requests from `127.0.0.1` and `localhost` are automatically treated as Admin Management traffic so you never accidentally lock yourself out of the dashboard while testing.
+> **Localhost Development Handling**: In local testing, requests from `127.0.0.1` and `localhost` are treated as Admin Management traffic by default (unless an `X-Simulated-IP` header is explicitly provided), preventing accidental lockouts while developing.
 
 ---
 
 ## 3. Tab 1: Campus Network Topology & VLANs
 
-This tab provides a visual architectural map of how physical network hardware is segmented in the cafeteria:
+This tab presents a visual architectural map of how campus network zones are logically partitioned in the SmartServe system model:
 
-### The 2-Tier Campus Network Hierarchy:
+### The 2-Tier Logical Network Model:
 1. **VLAN 10 — Admin & Management Network (`192.168.1.0/24`)**:
-   * **Devices**: Administrator desktop PCs, management laptops, central SmartServe server.
-   * **Access**: Unrestricted read/write access to all API endpoints, orders, inventory, student accounts, and database records.
+   * **Target Devices**: Administrator desktop PCs, management laptops, central SmartServe server.
+   * **Access Rights**: Unrestricted read/write access to all API endpoints, orders, inventory, student accounts, and system configurations.
 2. **VLAN 20 — Student Mobile Wi-Fi Network (`172.16.0.0/20`)**:
-   * **Devices**: Student personal smartphones connecting over campus Wi-Fi.
-   * **Access**: Restricted strictly to `/api/student/*` routes. All attempts to probe or modify staff/admin endpoints are intercepted and dropped.
+   * **Target Devices**: Student personal smartphones connecting over campus Wi-Fi.
+   * **Access Rights**: Restricted to `/api/student/*` endpoints. Requests attempting to probe staff or management endpoints are intercepted and logged or blocked based on the active security mode.
 
 ---
 
-## 4. Tab 2: DHCP Reservations & Hardware Station Manager
+## 4. Tab 2: Simulated DHCP Reservations & Station Manager
 
-Administrator PCs and management laptops maintain permanent, deterministic IP addresses bound to physical hardware MAC addresses to protect administrative network space.
+SmartServe maintains an application-level registry of authorized administrative devices in MongoDB (`DhcpReservation` collection), modeling how static DHCP reservations and MAC-to-IP bindings function in enterprise network administration.
+
+> **Technical Note:** This tab manages database records representing physical devices. It does not replace a bare-metal DHCP server daemon; rather, it provides administrators with a centralized inventory and device status tracking interface.
 
 ### Features in this Tab:
-* **Hardware MAC Binding**: Admin PCs and laptops have their MAC addresses bound to specific IPs (`192.168.1.50`, `192.168.1.51`). If an unauthorized device connects, it cannot claim administrative IP space.
-* **Live ICMP Ping Test**:
-  1. Find any station row (e.g., *Admin Management Workstation (PC)*).
+* **Hardware MAC-to-IP Binding**: Admin PCs and laptops are registered with their physical MAC addresses and assigned static management IPs (`192.168.1.50`, `192.168.1.51`).
+* **Station Ping & Availability Check**:
+  1. Locate a registered device row (e.g., *Admin Management Workstation (PC)*).
   2. Click the blue **"Ping"** button.
-  3. The system sends an ICMP ping test and returns live telemetry:
+  3. The backend executes a simulated ping check (`POST /api/network/dhcp/:id/ping`), updating the station's `lastSeen` timestamp in MongoDB and returning simulated telemetry:
+     ```text
+     Ping Reply Received from Admin Management Workstation (PC)
+     IP: 192.168.1.50 | MAC: 00:50:56:A3:B1:00 | Simulated RTT: ~2.1ms | Loss: 0% | TTL: 64
      ```
-     ICMP Ping Reply Received from Admin Management Workstation (PC)
-     IP: 192.168.1.50 | MAC: 00:50:56:A3:B1:00 | RTT: 1.42ms | Loss: 0% | TTL: 64
-     ```
+     *(Note: Latency values between 0.8ms – 4.3ms and TTL=64 are simulated response telemetry for UI demonstration, not raw ICMP socket probes).*
 * **Registering a New Station**:
   1. Click **"+ Register New Station"**.
   2. Enter the device name (e.g., *"Admin Portable Laptop"*).
-  3. Enter the physical hardware MAC address (e.g., `00:1A:2B:3C:4D:5E`).
+  3. Enter the device MAC address (e.g., `00:1A:2B:3C:4D:5E`).
   4. Enter the reserved IP address (e.g., `192.168.1.52`).
   5. Select Device Type (**Admin Desktop PC** or **Admin Laptop**).
   6. Click **"Bind MAC & Reserve IP"**.
@@ -95,123 +103,116 @@ Administrator PCs and management laptops maintain permanent, deterministic IP ad
 
 ## 5. Tab 3: Access Control Lists (ACL) Policy Editor
 
-ACL rules define the firewall logic that determines which subnets can access which system routes.
+The ACL Policy Editor manages the rule set loaded by SmartServe's `aclMiddleware.js`. Rules are stored in MongoDB and cached in memory for sub-millisecond route evaluation.
 
 ### How Rules are Evaluated:
-* Rules are evaluated from **lowest priority number to highest** (`#10` → `#20` → `#30`...).
-* **First match wins**: The first rule matching the client IP, HTTP method, and route pattern determines the verdict (`ALLOW` or `DENY`).
+* Rules are sorted and evaluated in ascending priority order (`priority ASC`: `#10` → `#20` → `#30`...).
+* **First Match Wins**: The first rule matching the client IP (via bitwise CIDR calculation), HTTP method, and route pattern determines the outcome (`ALLOW` or `DENY`).
+* If no custom rule matches, the system applies the global default action (`ALLOW`).
 
 ### Managing Rules:
-* **Enable / Disable Toggle**: Click the **"Active / Disabled"** button in any row to instantly enable or disable a policy without deleting it.
-* **Creating a Custom Rule**:
+* **Active / Inactive Toggle**: Click the status toggle button on any rule to enable or disable it immediately without deletion. The in-memory cache is automatically invalidated.
+* **Adding a Custom Rule**:
   1. Click **"+ Add ACL Rule"**.
-  2. Specify the **Action** (`DENY` or `ALLOW`).
-  3. Enter the **Priority** (e.g., `45` to run before rule `#50`).
-  4. Enter the **Source Subnet CIDR** (e.g., `172.16.0.0/20` for Student Wi-Fi, or `*` for all).
+  2. Choose the **Action** (`DENY` or `ALLOW`).
+  3. Set the **Priority** (e.g., `25` to evaluate between rule `#20` and `#30`).
+  4. Enter the **Source Subnet CIDR** (e.g., `172.16.0.0/20` for Student Wi-Fi, or `*` for any IP).
   5. Enter the **Target Route Pattern** (e.g., `/api/inventory/*`).
-  6. Select HTTP Method (`ALL`, `GET`, `POST`, `PUT`, `DELETE`).
+  6. Select the HTTP Method (`ALL`, `GET`, `POST`, `PUT`, `DELETE`).
   7. Click **"Save & Apply Policy"**.
 
 ---
 
 ## 6. Tab 4: Interactive Packet Tester & Simulator
 
-The simulator allows you to test whether an arbitrary network packet from any device will be allowed or blocked by your ACL policies **without needing physical hardware**.
+The Packet Simulator allows administrators and capstone evaluators to test how any theoretical network packet will be evaluated by the ACL rule engine without needing physical devices or separate subnets.
 
 ### How to Run a Simulation:
 1. Navigate to the **"Packet Tester / Simulator"** tab.
-2. Click any of the **Quick Scenario Presets**:
-   * 🔴 **Student Phone accessing Staff Inventory**: Automatically fills IP `172.16.4.15` and route `/api/inventory`.
-   * 🟢 **Student Phone accessing Student Portal**: Fills IP `172.16.4.15` and route `/api/student/auth/login`.
-   * 🟢 **Staff Cashier PC submitting an Order**: Fills IP `192.168.10.11` and route `/api/orders`.
-   * 🟢 **Admin Workstation PC querying Audit Logs**: Fills IP `192.168.1.50` and route `/api/audit-logs`.
-3. Or enter a custom IP and API route.
+2. Select a **Quick Scenario Preset**:
+   * 🔴 **Student Phone accessing Staff Inventory**: Pre-fills IP `172.16.4.15` and route `/api/inventory`.
+   * 🟢 **Student Phone accessing Student Portal**: Pre-fills IP `172.16.4.15` and route `/api/student/auth/login`.
+   * 🟢 **Admin Workstation PC querying Audit Logs**: Pre-fills IP `192.168.1.50` and route `/api/audit-logs`.
+3. Or manually enter any IPv4 address, HTTP method, and API path.
 4. Click **"Simulate Packet Flow"**.
 
 ### Interpreting the Results:
 * **Verdict Banner**:
-  * 🟢 **PERMITTED (ALLOW)**: Packet is allowed to reach the backend controller.
-  * 🔴 **DROPPED (DENY)**: Packet is blocked by the network firewall.
-* **Rule Evaluation Trace**: Shows an audit trail of every single rule evaluated, indicating whether the subnet CIDR, method, and route matched, and which rule triggered the final decision.
+  * 🟢 **PERMITTED (ALLOW)**: The request satisfies an ALLOW rule (or default policy) and would reach the route controller.
+  * 🔴 **DROPPED (DENY)**: The request matches a DENY rule and would be rejected with HTTP 403 in Enforce mode (or logged with a warning in Audit-Only mode).
+* **Step-by-Step Evaluation Trace**: Displays every rule evaluated in order of priority, indicating whether the source CIDR, HTTP method, and route pattern matched, and highlighting the exact rule that made the final decision.
 
 ---
 
 ## 7. Tab 5: Live ACL Block Logs & Incident Audit
 
-Every time a device attempts an unauthorized cross-subnet request, an incident record is logged in MongoDB and broadcasted in real time:
+Whenever an unauthorized cross-subnet request is detected, SmartServe creates an audit log entry in MongoDB under category `"network"` and emits a real-time event to the admin Socket.IO room:
 
 * **Timestamp**: Exact date and time of the incident.
-* **Source IP**: The client IP address that initiated the request.
-* **Target Route**: The URL endpoint that was probed (e.g., `GET /api/inventory`).
-* **Enforced Rule**: Which ACL rule caught and dropped the packet (e.g., `Deny-Student-Inventory-Access`).
-* **Description**: Human-readable explanation of why the packet was rejected.
-
----
+* **Source IP**: The client IP address that made the request.
+* **Target Route & Method**: The API endpoint and HTTP method probed (e.g., `GET /api/inventory`).
+* **Enforced Rule**: The specific ACL rule that triggered the block (e.g., `Deny-Student-Inventory-Access`).
+* **Description**: Detailed audit statement recording the security action.
 
 ---
 
 ## 8. Tab 6: Connected Users & IP Tracker
 
-This tab gives administrators real-time forensic observability over all active student and staff sessions currently connected to SmartServe:
+This tab provides real-time visibility into active client sessions communicating with the SmartServe backend:
 
 ### Key Features:
-* **Live Campus Counters**:
-  - **Students on Wi-Fi (VLAN 20)**: Real-time count of connected student smartphones (`172.16.0.0/20`).
-  - **Admins on LAN (VLAN 10)**: Count of management desktop PCs and laptops (`192.168.1.0/24`).
-  - **Primary Region**: Top regional aggregation (e.g., **Philippines**).
-* **Search & Filter**: Quickly filter connected clients by user name, student ID, IP address, or region.
-* **Telemetry Table Columns**:
-  - **User / Student**: Avatar initial/photo, full name, and school ID.
-  - **Account Type**: Colored badges distinguishing *Student (BYOD)* (`bg-emerald-100`) from *Staff / Admin* (`bg-blue-100`).
-  - **Assigned IP Address**: Monospace IP container with copy-to-clipboard button and VLAN tag badge (`VLAN 20` or `VLAN 10`).
-  - **Region**: Cleanly displays **"Philippines"** (with location pin).
-  - **Device Form Factor**: Distinguishes *Smartphone (Mobile)* from *Desktop PC / Laptop*.
-  - **Last Activity**: Formatted timestamp of recent activity.
-  - **"Simulate" Quick-Action Button**: Immediately transfers the user's real IP into the Packet Tester to test ACL reachability against protected endpoints.
+* **Campus Zone Summary Pills**:
+  - **Students on Wi-Fi (VLAN 20)**: Live count of active student sessions originating from the `172.16.0.0/20` subnet.
+  - **Admins on LAN (VLAN 10)**: Count of active administrator sessions on the `192.168.1.0/24` subnet.
+  - **Primary Region**: Regional aggregation badge (strictly standardizing public/Philippine connections as **"Philippines"**).
+* **Session Filtering**: Search active sessions by user name, student ID, IP address, or device type.
+* **Session Table Columns**:
+  - **User**: Name, avatar, and school ID.
+  - **Role**: Distinction between *Student (BYOD)* and *Staff / Admin*.
+  - **IP Address & Subnet**: Monospace IP container with copy button and mapped VLAN tag.
+  - **Region**: Location badge (**Philippines**).
+  - **Device Form Factor**: Hardware category parsed from HTTP User-Agent (*Smartphone (Mobile)* vs. *Desktop PC / Laptop*).
+  - **Last Active**: Timestamp of latest recorded activity.
+  - **"Simulate" Shortcut**: Transfers the user's IP directly into the Packet Simulator to test their access against any protected endpoint.
 
 ---
 
 ## 9. Admin Dashboard Campus Network Tableview
 
-On the primary Admin Dashboard (`/dashboard`), the **Campus Network & IP Telemetry** component is placed directly beneath the **Recent Orders** table:
+On the primary Admin Dashboard (`/dashboard`), the **Campus Network & IP Telemetry** component is integrated directly beneath the **Recent Orders** table:
 
-* **Full-Width Tableview**: Spans the entire width of the dashboard so all 6 columns (*Client/User*, *Account Role*, *IP Address & VLAN*, *Region*, *Device*, and *Last Active*) are completely viewable without horizontal scroll or cramped cards.
-* **Region Column**: Displays **"Philippines"** for all recognized Philippine client connections.
-* **Header KPI Pills**: Shows live counts for `X Wi-Fi (VLAN 20)` and `Y LAN (VLAN 10)` alongside a pulsing green **Live** indicator.
-* **1-Click Shortcut**: Clicking any row or the *"View All"* button takes you directly to the Connected Users & IP Tracker tab.
-* **Balanced Bottom Grid**: Quick Actions (left) and Recent Redemptions (right) sit side-by-side underneath the tables for clean dashboard symmetry.
+* **Full-Width Tableview**: Displays client sessions, roles, IP addresses, VLAN tags, region badges, and device classifications in a single view.
+* **Standardized Regional Display**: Displays **"Philippines"** for recognized Philippine IP connections.
+* **Header Status Pills**: Live counters for `X Wi-Fi (VLAN 20)` and `Y LAN (VLAN 10)` with an active indicator.
+* **Quick Navigation**: A *"View All"* link navigates directly to the full Connected Users & IP Tracker tab.
+* **Dashboard Layout**: Sits directly above the balanced Quick Actions and Recent Redemptions grid.
 
 ---
 
 ## 10. Step-by-Step Presentation / Demonstration Script
 
-If demonstrating this project to a teacher, examiner, or class:
+Use this script during a capstone defense, project demonstration, or evaluator walkthrough:
 
 ```markdown
-Step 1: Open the Network & Security Dashboard
-- "Here is SmartServe's Network & Security Dashboard. In our school cafeteria, we have two primary network user groups: Administrators and staff on VLAN 10 (Admin LAN), and students accessing menus and BYOC rewards on VLAN 20 (Cafeteria Mobile Wi-Fi)."
+Step 1: Introduce the Network Subsystem Concept
+- "SmartServe includes an application-layer network management and policy enforcement subsystem. In our school cafeteria design, network traffic is partitioned into two logical zones: Admin Management on VLAN 10 (192.168.1.0/24) and Student Mobile Wi-Fi on VLAN 20 (172.16.0.0/20)."
 
-Step 2: Demonstrate DHCP Hardware Binding & Ping
-- "Under DHCP Stations, we see our physical admin workstation. Notice that the Admin Workstation PC has its physical MAC address permanently bound to 192.168.1.50 on VLAN 10. Let's ping the workstation."
-- (Click 'Ping' on Admin Management Workstation -> Observe the live sub-2ms ICMP reply with TTL 64).
+Step 2: Demonstrate the Simulated DHCP Station Manager
+- "Under Tab 2 (DHCP Stations), we maintain an application-level registry of authorized administrative workstations bound to their physical MAC addresses. Let's click 'Ping' on the Admin Management Workstation. The system records the check, updates the station's last-seen timestamp, and returns simulated response telemetry to demonstrate device status monitoring."
 
-Step 3: Demonstrate the ACL Packet Simulator
-- "Now let's test our Access Control Lists. Suppose a student connected to the cafeteria Wi-Fi (IP 172.16.4.15) discovers our internal inventory API and tries to view stock levels."
-- (Click the red preset: 'Student Phone accessing Staff Inventory' -> Click 'Simulate Packet Flow').
-- (Point to the Red DROPPED banner and Rule #40 'Deny-Student-Inventory-Access').
-- "Notice how rule #40 immediately caught the packet and dropped it before it could ever hit our database."
+Step 3: Demonstrate the ACL Policy Engine & Packet Simulator
+- "Under Tab 4, we have an interactive Packet Simulator that executes the exact same bitwise CIDR and route matching algorithm as our backend Express middleware. Let's test what happens when a student smartphone on the cafeteria Wi-Fi (IP 172.16.4.15) attempts to access our internal inventory API at /api/inventory."
+- (Select preset: 'Student Phone accessing Staff Inventory' -> Click 'Simulate Packet Flow').
+- (Point to the Red DROPPED verdict and Rule #40 'Deny-Student-Inventory-Access').
+- "The simulator walks through each priority rule and shows that Rule #40 triggered a DENY because the source IP matches the student subnet (172.16.0.0/20) and the route pattern matches /api/inventory/*."
 
 Step 4: Demonstrate Permitted Student Traffic
-- "Now let's see what happens when that same student smartphone accesses the student portal."
-- (Click 'Student Phone accessing Student Portal' -> Click 'Simulate Packet Flow').
-- (Point to the Green PERMITTED banner and Rule #20 'Allow-Student-Portal-Routes').
+- "Now let's verify legitimate student access. A student on the same Wi-Fi subnet accessing /api/student/auth/login matches Rule #20 ('Allow-Student-Portal-Routes'), resulting in an ALLOW verdict."
+- (Select preset: 'Student Phone accessing Student Portal' -> Click 'Simulate Packet Flow' -> Observe green PERMITTED result).
 
-Step 5: Show the Live Security Audit Log
-- "Switching to the 'ACL Block Logs' tab, administrators have full forensic traceability over every unauthorized network probe with timestamps and source IPs."
+Step 5: Show the Live Incident Audit Logs
+- "In Tab 5, whenever a blocked request occurs in Enforce mode, an audit entry is created with the timestamp, source IP, and triggered rule, ensuring full forensic accountability."
 
-Step 6: Demonstrate Connected Users & IP Tracker
-- "Next, in the 'Connected Users & IP Tracker' tab, we can see real-time sessions of students and administrators, their hardware form factor (smartphones vs PCs), and their region (Philippines). Clicking 'Simulate' on any student immediately loads their real IP into the Packet Tester."
-
-Step 7: Show the Main Dashboard Tableview
-- "Finally, back on the main Admin Dashboard, the Campus Network & IP Telemetry table sits right below Recent Orders, giving administrators instant situational awareness over all Wi-Fi and LAN connections across campus."
+Step 6: Demonstrate Connected Users & Real-Time IP Telemetry
+- "In Tab 6 and on the main dashboard, SmartServe captures real client IP addresses, parses User-Agent headers to distinguish mobile phones from desktop computers, and maps connections to their appropriate campus network zone."
 ```

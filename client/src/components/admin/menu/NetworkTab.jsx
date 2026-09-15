@@ -21,14 +21,22 @@ import {
   IoPlayOutline,
   IoInformationCircleOutline,
   IoCloseOutline,
-  IoHelpCircleOutline,
   IoPeopleOutline,
   IoLocationOutline,
   IoCopyOutline,
   IoCheckmarkOutline,
 } from "react-icons/io5";
 import { MdRouter, MdSecurity, MdLan } from "react-icons/md";
-import NetworkGuideModal from "./NetworkGuideModal";
+
+const resolveImageUrl = (url) => {
+  if (!url) return "";
+  if (url.startsWith("http://") || url.startsWith("https://") || url.startsWith("data:")) return url;
+  const apiBase = import.meta.env.VITE_API_URL || "/api";
+  if (apiBase.startsWith("http")) {
+    return `${apiBase.replace(/\/api\/?$/, "")}${url}`;
+  }
+  return url;
+};
 
 export default function NetworkTab() {
   const [searchParams] = useSearchParams();
@@ -37,7 +45,6 @@ export default function NetworkTab() {
   const [activeSubTab, setActiveSubTab] = useState(initialSubTab); // topology | dhcp | acl | simulator | logs | sessions
   const [overview, setOverview] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [showGuide, setShowGuide] = useState(false);
 
   // DHCP state
   const [dhcpStations, setDhcpStations] = useState([]);
@@ -486,17 +493,6 @@ export default function NetworkTab() {
           <IoPeopleOutline className="text-base" />
           Connected Users & IP Tracker
         </button>
-
-        <div className="ml-auto">
-          <button
-            onClick={() => setShowGuide(true)}
-            className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold bg-[#4a6741]/10 text-[#4a6741] hover:bg-[#4a6741]/20 border border-[#4a6741]/30 transition cursor-pointer shadow-sm"
-            title="Open Network & Security Guide"
-          >
-            <IoHelpCircleOutline className="text-base" />
-            <span>Guide</span>
-          </button>
-        </div>
       </div>
 
       {/* ═════════════════════════════════════════════════════════════════════════ */}
@@ -1401,16 +1397,39 @@ export default function NetworkTab() {
                       const isStudent = session.userType !== "admin";
                       const isVlan20 = session.vlanId === 20;
 
+                      const rawAvatar = session.avatar || session.profileImage || session.profileImageUrl || "";
+                      const avatarUrl = resolveImageUrl(rawAvatar);
+                      const nameWords = (session.name || "").trim().split(" ").filter(Boolean);
+                      const initials =
+                        nameWords.length >= 2
+                          ? (nameWords[0][0] + nameWords[nameWords.length - 1][0]).toUpperCase()
+                          : nameWords.length === 1
+                            ? nameWords[0].slice(0, 2).toUpperCase()
+                            : "U";
+
                       return (
                         <tr key={session._id} className="hover:bg-gray-50/60 transition">
                           <td className="py-3.5 px-4">
                             <div className="flex items-center gap-3">
-                              <div className="w-8 h-8 rounded-full bg-[#d7ecc8] text-[#4a6741] flex items-center justify-center font-bold text-xs flex-shrink-0 overflow-hidden">
-                                {session.avatar ? (
-                                  <img src={session.avatar} alt={session.name} className="w-full h-full object-cover" />
-                                ) : (
-                                  session.name?.[0]?.toUpperCase()
-                                )}
+                              <div className="w-8 h-8 rounded-full bg-[#d7ecc8] text-[#4a6741] flex items-center justify-center font-bold text-xs flex-shrink-0 overflow-hidden border border-[#4a6741]/20 shadow-2xs">
+                                {avatarUrl ? (
+                                  <img
+                                    src={avatarUrl}
+                                    alt={session.name || "User"}
+                                    className="w-full h-full object-cover"
+                                    onError={(e) => {
+                                      e.currentTarget.style.display = "none";
+                                      const fallback = e.currentTarget.nextElementSibling;
+                                      if (fallback) fallback.style.display = "flex";
+                                    }}
+                                  />
+                                ) : null}
+                                <span
+                                  className={`w-full h-full flex items-center justify-center ${avatarUrl ? "hidden" : "flex"
+                                    }`}
+                                >
+                                  {initials}
+                                </span>
                               </div>
                               <div>
                                 <div className="font-bold text-gray-800">{session.name}</div>
@@ -1762,8 +1781,6 @@ export default function NetworkTab() {
           document.body
         )}
 
-      {/* ── MODAL: Network Architecture & Security In-App Guide ──────────────── */}
-      <NetworkGuideModal isOpen={showGuide} onClose={() => setShowGuide(false)} />
     </div >
   );
 }
