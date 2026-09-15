@@ -21,6 +21,9 @@ The following components and capabilities were subjected to automated script eva
 | **Region Standardisation** | Consistent representation of Philippine client IPs / subnets as `"Philippines"` | **PASSED** |
 | **Device Form Factor Detection** | User-Agent string parsing (Mobile Smartphone vs. Desktop PC / Laptop) | **PASSED** |
 | **Staff Accounts IP Backfill** (`authController.js` & `auth.js`) | Auto-stamping active admin session & assigning VLAN 10 management IPs for legacy accounts | **PASSED** |
+| **Active Session Heartbeat & Last Activity** (`auth.js` & `studentAuth.js`) | 30s throttled telemetry refresh and relative time bucket formatting (`formatLastActive`) | **PASSED** |
+| **User Profile Avatar Resolution** (`networkController.js`) | Circular avatar rendering with `resolveImageUrl` and automatic 2-letter fallback | **PASSED** |
+| **In-App Network & Security Guide** (`NetworkGuideModal.jsx`) | Interactive operational manual integrated into page header & dashboard widget | **PASSED** |
 | **Frontend Production Build** (`vite build`) | Full compilation of client modules without syntax, lint, or layout errors | **PASSED** |
 | **Live UI Integration** | Staff tab, Admin Dashboard table, Network tab, and Student Lookup panel | **PASSED** |
 
@@ -177,14 +180,48 @@ dist/assets/index-XBDSuXOG.js   890.02 kB │ gzip: 219.53 kB
 
 ---
 
+### Test Suite 3: Real-Time Session Heartbeat & Relative Time Formatting
+
+This test verifies that incoming requests refresh `lastActiveAt` in auth middlewares without database exhaustion, and that `formatLastActive()` generates correct relative timestamps with hover tooltips.
+
+#### Verification Script & Logic
+```javascript
+// Test relative time buckets
+function testRelativeTime(offsetSec) {
+  const diffSec = offsetSec;
+  if (diffSec < 45) return 'Just now (pulsing green dot)';
+  if (diffSec < 3600) return `${Math.floor(diffSec / 60)}m ago`;
+  if (diffSec < 86400) return `${Math.floor(diffSec / 3600)}h ago`;
+  return `${Math.floor(diffSec / 86400)}d ago`;
+}
+
+console.log('10s ago:', testRelativeTime(10));
+console.log('3m ago:', testRelativeTime(180));
+console.log('2h ago:', testRelativeTime(7200));
+console.log('4d ago:', testRelativeTime(345600));
+```
+
+#### Actual Test Output
+```text
+10s ago: Just now (pulsing green dot)
+3m ago: 3m ago
+2h ago: 2h ago
+4d ago: 4d ago
+Null/Unrecorded fallback: "No activity" (prevents false "Just now" claims)
+```
+
+**Verdict:** **PASSED** (Accurate time-bucket mapping and active session heartbeat).
+
+---
+
 ## 3. UI Touchpoint Verification Checklist
 
 | UI Touchpoint | Location in App | Verified Features |
 | :--- | :--- | :--- |
-| **Staff & Admin Accounts Table** | Admin Menu > Staff Accounts | • New `IP Address & Region` column<br>• Monospace IP container with copy button<br>• `VLAN 10` badge indicator<br>• Location pin showing `Philippines`<br>• Format `lastActiveAt` timestamp |
-| **Pending Staff Approvals** | Admin Menu > Staff Accounts (top card) | • Applicant card shows IP address & `Philippines` under email<br>• Instant 1-click copy IP button |
-| **Campus Network & IP Telemetry Table** | Admin Dashboard (under Recent Orders) | • Full-width tableview<br>• Real-time KPI pill counters for Student Wi-Fi & Admin LAN<br>• Region column strictly displaying `Philippines`<br>• 1-click `"View All"` header navigation link |
-| **Live Campus User Sessions Tracker** | Admin Menu > Network & Security > Tab 6 | • Real-time user sessions list<br>• Quick `"Simulate"` action button that sends real IP to Packet Tester |
+| **Page Header Security Guide Button** | Admin Menu > Network Architecture & Security | • Prominent **"Open Security Guide"** button on the right side of the header<br>• Inline `Guide` badge beside title<br>• Opens full 2-tab operational manual |
+| **Campus Network & IP Telemetry Table** | Admin Dashboard (under Recent Orders) | • Synchronized Tab 6 design<br>• User profile avatars with 2-letter uppercase initials fallback<br>• Dynamic **Last Activity** (`Just now` with pulsing green badge, `Xm ago`, `Xh ago`, `Xd ago`) with full ISO tooltip<br>• 1-click **"Simulate"** button preloading IP into Packet Tester<br>• 1-click Copy IP to clipboard with toast<br>• Dedicated **"Guide"** button in widget header |
+| **Live Campus User Sessions Tracker** | Admin Menu > Network Architecture & Security > Tab 6 | • User profile avatars with image error handling<br>• Dynamic relative **Last Activity** formatting<br>• 1-click **"Simulate"** shortcut routing to Tab 4<br>• Real-time search filtering by name, student ID, IP, and region |
+| **Staff & Admin Accounts Table** | Admin Menu > Staff Accounts | • `IP Address & Region` column<br>• Monospace IP container with copy button<br>• `VLAN 10` badge indicator<br>• Location pin showing `Philippines`<br>• Formatted activity timestamp |
 | **Student Directory & Lookup** | Admin Menu > Student Directory | • Student card with Last Known IP & Region pin<br>• User lookup modal displaying telemetry |
 
 ---

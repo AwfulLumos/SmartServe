@@ -478,14 +478,14 @@ exports.getConnectedSessions = async (req, res) => {
   try {
     const [recentStudents, recentAdmins] = await Promise.all([
       Student.find({ isDeleted: false })
-        .sort({ lastActiveAt: -1, updatedAt: -1 })
+        .sort({ lastActiveAt: -1, updatedAt: -1, createdAt: -1 })
         .limit(50)
-        .select("schoolId fullName email userType profileImage lastLoginIp lastLoginRegion lastActiveAt lastDevice updatedAt")
+        .select("schoolId fullName email userType profileImage lastLoginIp lastLoginRegion lastActiveAt lastDevice updatedAt createdAt")
         .lean(),
       User.find({ isApproved: true })
-        .sort({ lastActiveAt: -1, lastLoginAt: -1 })
+        .sort({ lastActiveAt: -1, lastLoginAt: -1, updatedAt: -1 })
         .limit(20)
-        .select("fullName email role profileImageUrl lastLoginIp lastLoginRegion lastActiveAt lastDevice updatedAt")
+        .select("fullName email role profileImageUrl lastLoginIp lastLoginRegion lastActiveAt lastLoginAt lastDevice updatedAt createdAt")
         .lean(),
     ]);
 
@@ -499,6 +499,8 @@ exports.getConnectedSessions = async (req, res) => {
       if (isPhilippineIp(ip) || /philippines|philippine|calabarzon|metro manila/i.test(region)) {
         region = "Philippines";
       }
+
+      const lastActiveTime = student.lastActiveAt || student.updatedAt || student.createdAt || null;
 
       sessions.push({
         _id: student._id,
@@ -520,8 +522,8 @@ exports.getConnectedSessions = async (req, res) => {
         region: region,
         deviceType: student.lastDevice || "Smartphone (Mobile)",
         device: student.lastDevice || "Smartphone (Mobile)",
-        lastActive: student.lastActiveAt || student.updatedAt,
-        lastActiveAt: student.lastActiveAt || student.updatedAt,
+        lastActive: lastActiveTime,
+        lastActiveAt: lastActiveTime,
         status: "active",
       });
     }
@@ -534,6 +536,8 @@ exports.getConnectedSessions = async (req, res) => {
       if (isPhilippineIp(ip) || /philippines|philippine|calabarzon|metro manila/i.test(region)) {
         region = "Philippines";
       }
+
+      const lastActiveTime = admin.lastActiveAt || admin.lastLoginAt || admin.updatedAt || admin.createdAt || null;
 
       sessions.push({
         _id: admin._id,
@@ -555,14 +559,18 @@ exports.getConnectedSessions = async (req, res) => {
         region: region,
         deviceType: admin.lastDevice || "Desktop PC / Laptop",
         device: admin.lastDevice || "Desktop PC / Laptop",
-        lastActive: admin.lastActiveAt || admin.updatedAt,
-        lastActiveAt: admin.lastActiveAt || admin.updatedAt,
+        lastActive: lastActiveTime,
+        lastActiveAt: lastActiveTime,
         status: "active",
       });
     }
 
-    // Sort by last active descending
-    sessions.sort((a, b) => new Date(b.lastActive) - new Date(a.lastActive));
+    // Sort by last active descending safely
+    sessions.sort((a, b) => {
+      const timeA = a.lastActive ? new Date(a.lastActive).getTime() : 0;
+      const timeB = b.lastActive ? new Date(b.lastActive).getTime() : 0;
+      return timeB - timeA;
+    });
 
     // Summary statistics
     const totalSessions = sessions.length;

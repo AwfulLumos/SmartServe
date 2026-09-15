@@ -38,6 +38,38 @@ const resolveImageUrl = (url) => {
   return url;
 };
 
+const formatLastActive = (rawDate) => {
+  if (!rawDate) return { relative: "No activity", full: "No recorded activity", isRecent: false };
+  const d = new Date(rawDate);
+  if (isNaN(d.getTime())) return { relative: "Unknown", full: String(rawDate), isRecent: false };
+
+  const now = Date.now();
+  const diffMs = now - d.getTime();
+  const full = d.toLocaleString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: true,
+  });
+
+  if (diffMs < 45000 && diffMs > -10000) {
+    return { relative: "Just now", full, isRecent: true };
+  }
+  const diffSec = Math.floor(diffMs / 1000);
+  const diffMin = Math.floor(diffSec / 60);
+  if (diffMin < 60) return { relative: `${diffMin}m ago`, full, isRecent: diffMin <= 5 };
+  const diffHours = Math.floor(diffMin / 60);
+  if (diffHours < 24) return { relative: `${diffHours}h ago`, full, isRecent: false };
+  const diffDays = Math.floor(diffHours / 24);
+  if (diffDays < 7) return { relative: `${diffDays}d ago`, full, isRecent: false };
+
+  const shortDate = d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+  return { relative: shortDate, full, isRecent: false };
+};
+
 export default function NetworkTab() {
   const [searchParams] = useSearchParams();
   const location = useLocation();
@@ -1505,9 +1537,20 @@ export default function NetworkTab() {
                             </div>
                           </td>
 
-                          <td className="py-3.5 px-4 text-gray-500 font-mono text-[11px]">
-                            {session.lastActive ? new Date(session.lastActive).toLocaleString("en-US") : "Just now"}
-                          </td>
+                          {/* Last Activity */}
+                          {(() => {
+                            const timeInfo = formatLastActive(session.lastActive);
+                            return (
+                              <td className="py-3.5 px-4 text-gray-500 font-mono text-[11px]" title={timeInfo.full}>
+                                <div className="flex items-center gap-1.5">
+                                  {timeInfo.isRecent && (
+                                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse flex-shrink-0" />
+                                  )}
+                                  <span>{timeInfo.relative}</span>
+                                </div>
+                              </td>
+                            );
+                          })()}
 
                           <td className="py-3.5 px-4 text-right">
                             <button

@@ -122,11 +122,18 @@ SmartServe captures real client connection telemetry during user authentication 
    - Private subnets map to campus zones (`172.16.0.0/20` maps to VLAN 20 Student Wi-Fi; `192.168.1.0/24` maps to VLAN 10 Admin LAN).
    - Public external IP addresses resolve to **"Philippines"** based on geographic classification.
 3. **Device Classification**: Parses the HTTP `User-Agent` header to categorize clients into **Smartphones (Mobile)** or **Desktop PCs / Laptops**.
-4. **Session Aggregation API (`GET /api/network/sessions`)**: Aggregates active student and staff accounts sorted by `lastActive DESC` with live counters for Wi-Fi vs. LAN clients.
+4. **Active Session Heartbeat & Throttled Telemetry Stamping**:
+   - Implemented in `server/middleware/auth.js` (for administrators/staff) and `server/middleware/studentAuth.js` (for students).
+   - On incoming authenticated requests, client IP, region, device form factor, and `lastActiveAt` timestamps are refreshed (throttled to once every 30 seconds to maintain database efficiency).
+5. **Session Aggregation API (`GET /api/network/sessions`)**:
+   - Aggregates active student and staff accounts sorted by `lastActive DESC` with live counters for Wi-Fi vs. LAN clients.
+   - Normalizes profile avatars (`avatar`, `profileImage`, `profileImageUrl`) across collections.
+   - Employs a robust fallback chain: `lastActiveAt || lastLoginAt || updatedAt || createdAt`.
 
 ### UI Touchpoints
-- **Main Admin Dashboard**: A full-width **Campus Network & IP Telemetry** table positioned below Recent Orders, featuring live client counters (`X Wi-Fi`, `Y LAN`), role badges, monospace IP containers, location badges (**Philippines**), and activity timestamps.
+- **Main Admin Dashboard**: A full-width **Campus Network & IP Telemetry** table (`AdminNetworkTelemetryTable.jsx`) positioned below Recent Orders, featuring live client counters (`X Wi-Fi`, `Y LAN`), user profile avatars with 2-letter fallback, role badges, monospace IP containers, location badges (**Philippines**), 1-click **"Simulate"** shortcuts, copyable IP tooltips, and dynamic **Last Activity** formatting (`Just now` with pulsing green indicator, `Xm ago`, `Xh ago`, `Xd ago`).
 - **Network & Security Tracker Tab**: Sub-Tab 6 (**Connected Users & IP Tracker**) with search filtering and direct integration into the Packet Simulator.
+- **In-App Network Architecture & Security Guide**: Accessible directly from the prominent **"Open Security Guide"** button in the page header of `MenuManagement.jsx` and the dashboard telemetry table, providing tab-by-tab manuals and cafeteria threat model documentation.
 - **Student Accounts & Profile Lookup**: Displays client IP addresses, location badges, and network telemetry cards within student profile drawers.
 
 ---
@@ -140,18 +147,19 @@ SmartServe captures real client connection telemetry during user authentication 
 - `server/models/AuditLog.js` — System audit log schema with `"network"` category enum.
 - `server/models/Student.js` & `server/models/User.js` — Schemas tracking `lastLoginIp`, `lastLoginRegion`, `lastActiveAt`, and `lastDevice`.
 - `server/utils/networkUtils.js` — Bitwise CIDR matching, IP normalization, route wildcard matching, and `resolveIpLocation()`.
+- `server/middleware/auth.js` & `server/middleware/studentAuth.js` — Authenticated middlewares with throttled (30s) session telemetry and `lastActiveAt` heartbeat updates.
 - `server/middleware/aclMiddleware.js` — Express ACL middleware performing application-layer packet inspection, in-memory caching, and audit logging.
 - `server/controllers/networkController.js` — REST API controllers for network overview, DHCP reservations, ACL rules, packet simulation, and session telemetry.
 - `server/routes/networkRoutes.js` — Protected API endpoints under `/api/network`.
 - `server/index.js` — Registers ACL middleware and mounts network route handlers.
 
 ### Frontend Files
+- `client/src/pages/admin/MenuManagement.jsx` — Registers the `network` tab in admin navigation and features the prominent **"Open Security Guide"** button on the right side of the page header.
 - `client/src/components/admin/menu/NetworkTab.jsx` — Network Dashboard UI with Topology, DHCP Manager, ACL Editor, Simulator, Logs, and Connected Users & IP Tracker.
 - `client/src/components/admin/menu/NetworkGuideModal.jsx` — In-app interactive guide modal with purpose, architecture, and step-by-step instructions for all features.
-- `client/src/components/admin/dashboard/AdminNetworkTelemetryTable.jsx` — Full-width dashboard tableview displaying live client sessions and IP telemetry.
+- `client/src/components/admin/dashboard/AdminNetworkTelemetryTable.jsx` — Full-width dashboard tableview displaying live client sessions, profile avatars, and dynamic relative IP telemetry.
 - `client/src/pages/admin/AdminDashboard.jsx` — Positions network telemetry table on the primary admin dashboard.
 - `client/src/components/admin/registerStudent/UserLookupPanel.jsx` — Network telemetry display within student details panel.
 - `client/src/components/admin/registerStudent/RegisterTable.jsx` — IP address and region display under student account rows.
-- `client/src/pages/admin/MenuManagement.jsx` — Registers the `network` tab in admin navigation.
 - `client/src/components/AdminLayout.jsx` — Network & Security navigation item in the admin sidebar.
 

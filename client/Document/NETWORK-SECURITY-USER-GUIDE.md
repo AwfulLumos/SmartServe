@@ -167,52 +167,53 @@ This tab provides real-time visibility into active client sessions communicating
   - **Primary Region**: Regional aggregation badge (strictly standardizing public/Philippine connections as **"Philippines"**).
 * **Session Filtering**: Search active sessions by user name, student ID, IP address, or device type.
 * **Session Table Columns**:
-  - **User**: Name, avatar, and school ID.
-  - **Role**: Distinction between *Student (BYOD)* and *Staff / Admin*.
-  - **IP Address & Subnet**: Monospace IP container with copy button and mapped VLAN tag.
-  - **Region**: Location badge (**Philippines**).
-  - **Device Form Factor**: Hardware category parsed from HTTP User-Agent (*Smartphone (Mobile)* vs. *Desktop PC / Laptop*).
-  - **Last Active**: Timestamp of latest recorded activity.
-  - **"Simulate" Shortcut**: Transfers the user's IP directly into the Packet Simulator to test their access against any protected endpoint.
+  - **User / Student**: Name, school ID, and circular user profile image with an automatic 2-letter uppercase initials fallback.
+  - **Account Type**: Distinguishes *Student (BYOD)* (emerald badge) from *System Administrator* or *Cafeteria Staff* (purple badge).
+  - **Assigned IP Address**: Monospace IP container with copy button, copy toast confirmation, and mapped VLAN tag (`VLAN 10` or `VLAN 20`).
+  - **Region**: Location pin with standardized **Philippines** geographic indicator.
+  - **Device Form Factor**: Hardware category parsed from HTTP User-Agent (*Smartphone (Mobile)* with phone icon vs. *Desktop PC / Laptop* with desktop icon).
+  - **Last Activity**: Dynamic, real-time relative formatting:
+    - *$< 45\text{s}$*: **`Just now`** with a green pulsing indicator ($\bullet$).
+    - *$< 60\text{m}$*: **`Xm ago`** (e.g. `4m ago`).
+    - *$< 24\text{h}$*: **`Xh ago`** (e.g. `2h ago`).
+    - *$< 7\text{d}$*: **`Xd ago`** (e.g. `3d ago`).
+    - *Older*: Short date (`Sep 14`).
+    - *Hover tooltip*: Reveals the exact full date and time (`Sep 15, 2026, 12:15:30 PM`).
+    - *Unrecorded*: Displays `No activity` gracefully instead of false claims.
+  - **"Simulate" Shortcut**: 1-click action button that immediately transfers the user's real assigned IP into Tab 4 (Packet Simulator) to audit their route permissions against sensitive endpoints.
 
 ---
 
 ## 9. Admin Dashboard Campus Network Tableview
 
-On the primary Admin Dashboard (`/dashboard`), the **Campus Network & IP Telemetry** component is integrated directly beneath the **Recent Orders** table:
+On the primary Admin Dashboard (`/dashboard`), the **Campus Network & IP Telemetry** component (`AdminNetworkTelemetryTable.jsx`) is integrated directly beneath the **Recent Orders** table:
 
-* **Full-Width Tableview**: Displays client sessions, roles, IP addresses, VLAN tags, region badges, and device classifications in a single view.
-* **Standardized Regional Display**: Displays **"Philippines"** for recognized Philippine IP connections.
-* **Header Status Pills**: Live counters for `X Wi-Fi (VLAN 20)` and `Y LAN (VLAN 10)` with an active indicator.
-* **Quick Navigation**: A *"View All"* link navigates directly to the full Connected Users & IP Tracker tab.
-* **Dashboard Layout**: Sits directly above the balanced Quick Actions and Recent Redemptions grid.
+* **Synchronized Design**: Styled to match the exact aesthetics of Tab 6 (`w-full text-left text-xs`, `bg-gray-50/80` headers, padded table rows, circular profile avatars with initials fallback, device form factor icons, and location tags).
+* **Active Session Heartbeat**: Integrates with the backend 30-second throttled heartbeat in `auth.js` and `studentAuth.js`, ensuring active admins and students maintain up-to-date `lastActive` timestamps and current IP classifications.
+* **Header Actions & Status**:
+  - Live counters for `X Wi-Fi (VLAN 20)` and `Y LAN (VLAN 10)`.
+  - **"Guide" Button**: One-click trigger launching the comprehensive Network Architecture & Security modal directly from the dashboard.
+  - **"View All" Link**: Navigates directly to the full Connected Users & IP Tracker tab (`/dashboard/settings/network?subTab=sessions`).
+* **1-Click "Simulate"**: Direct action on each row transferring the user IP to the firewall packet tester.
 
 ---
 
-## 10. Step-by-Step Presentation / Demonstration Script
+## 10. In-App Interactive Guide & Operational Walkthrough
 
-Use this script during a capstone defense, project demonstration, or evaluator walkthrough:
+Administrators can access the in-app **Network Architecture & Security Guide** at any time:
+1. **Primary Access Point**: Click the prominent **"Open Security Guide"** button located on the top-right side of the **Network Architecture & Security** header in `MenuManagement.jsx`.
+2. **Dashboard Access Point**: Click the **"Guide"** button on the header of the **Campus Network & IP Telemetry** widget on the main dashboard.
 
-```markdown
-Step 1: Introduce the Network Subsystem Concept
-- "SmartServe includes an application-layer network management and policy enforcement subsystem. In our school cafeteria design, network traffic is partitioned into two logical zones: Admin Management on VLAN 10 (192.168.1.0/24) and Student Mobile Wi-Fi on VLAN 20 (172.16.0.0/20)."
-
-Step 2: Demonstrate the Simulated DHCP Station Manager
-- "Under Tab 2 (DHCP Stations), we maintain an application-level registry of authorized administrative workstations bound to their physical MAC addresses. Let's click 'Ping' on the Admin Management Workstation. The system records the check, updates the station's last-seen timestamp, and returns simulated response telemetry to demonstrate device status monitoring."
-
-Step 3: Demonstrate the ACL Policy Engine & Packet Simulator
-- "Under Tab 4, we have an interactive Packet Simulator that executes the exact same bitwise CIDR and route matching algorithm as our backend Express middleware. Let's test what happens when a student smartphone on the cafeteria Wi-Fi (IP 172.16.4.15) attempts to access our internal inventory API at /api/inventory."
-- (Select preset: 'Student Phone accessing Staff Inventory' -> Click 'Simulate Packet Flow').
-- (Point to the Red DROPPED verdict and Rule #40 'Deny-Student-Inventory-Access').
-- "The simulator walks through each priority rule and shows that Rule #40 triggered a DENY because the source IP matches the student subnet (172.16.0.0/20) and the route pattern matches /api/inventory/*."
-
-Step 4: Demonstrate Permitted Student Traffic
-- "Now let's verify legitimate student access. A student on the same Wi-Fi subnet accessing /api/student/auth/login matches Rule #20 ('Allow-Student-Portal-Routes'), resulting in an ALLOW verdict."
-- (Select preset: 'Student Phone accessing Student Portal' -> Click 'Simulate Packet Flow' -> Observe green PERMITTED result).
-
-Step 5: Show the Live Incident Audit Logs
-- "In Tab 5, whenever a blocked request occurs in Enforce mode, an audit entry is created with the timestamp, source IP, and triggered rule, ensuring full forensic accountability."
-
-Step 6: Demonstrate Connected Users & Real-Time IP Telemetry
-- "In Tab 6 and on the main dashboard, SmartServe captures real client IP addresses, parses User-Agent headers to distinguish mobile phones from desktop computers, and maps connections to their appropriate campus network zone."
-```
+### Operational Verification Flow:
+1. **Verify Operating Mode**: Ensure the top-left mode selector is set to **Audit-Only (Safe)** for testing or **Enforce (Strict)** for live blocking.
+2. **Check DHCP Station Health**: Navigate to Tab 2 and click **"Ping"** on an authorized management workstation to verify application availability and simulated latency telemetry (0.8ms – 4.3ms RTT).
+3. **Simulate Cross-Zone Request**:
+   - In Tab 4 (Packet Simulator), select preset *"Student Phone accessing Staff Inventory"*.
+   - Click **"Simulate Packet Flow"**.
+   - Verify that Rule #40 (`Deny-Student-Inventory-Access`) matches the `172.16.0.0/20` CIDR and yields a **DROPPED** verdict.
+4. **Simulate Legitimate Student Request**:
+   - Select preset *"Student Phone accessing Student Portal"*.
+   - Click **"Simulate Packet Flow"**.
+   - Verify that Rule #20 matches and yields a **PERMITTED** verdict.
+5. **Inspect Incident Audit Logs**: Navigate to Tab 5 to verify forensic traceability of all dropped and flagged packets.
+6. **Monitor Live Sessions**: Check Tab 6 or the main dashboard table to verify real-time user avatars, IPs, VLAN zones, and dynamic **Last Activity** indicators.

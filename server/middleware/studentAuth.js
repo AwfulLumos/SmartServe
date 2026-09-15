@@ -26,6 +26,38 @@ const protectStudent = async (req, res, next) => {
     if (!req.student) {
       return res.status(401).json({ message: "Student not found" });
     }
+
+    // Keep student's lastActiveAt and IP telemetry freshly updated (throttled to at most once per 30s)
+    try {
+      const now = Date.now();
+      const lastActiveTime = req.student.lastActiveAt ? new Date(req.student.lastActiveAt).getTime() : 0;
+      if (!req.student.lastLoginIp || now - lastActiveTime > 30000) {
+        const { extractClientIp, resolveIpLocation, parseDeviceFormFactor } = require("../utils/networkUtils");
+        const clientIp = extractClientIp(req);
+        const loc = resolveIpLocation(clientIp);
+        const device = parseDeviceFormFactor(req.headers["user-agent"]);
+
+        req.student.lastActiveAt = new Date(now);
+        if (clientIp) req.student.lastLoginIp = clientIp;
+        if (loc.region) req.student.lastLoginRegion = loc.region;
+        if (device) req.student.lastDevice = device;
+
+        Student.updateOne(
+          { _id: req.student._id },
+          {
+            $set: {
+              lastActiveAt: new Date(now),
+              ...(clientIp ? { lastLoginIp: clientIp } : {}),
+              ...(loc.region ? { lastLoginRegion: loc.region } : {}),
+              ...(device ? { lastDevice: device } : {}),
+            },
+          }
+        ).catch(() => { });
+      }
+    } catch {
+      // Silently continue if telemetry resolution fails
+    }
+
     next();
   } catch {
     res.status(401).json({ message: "Not authorized, invalid token" });

@@ -22,32 +22,35 @@ const protect = async (req, res, next) => {
       return res.status(401).json({ message: "User not found" });
     }
 
-    // Auto-stamp client IP telemetry for active sessions if missing
-    if (!req.user.lastLoginIp) {
-      try {
+    // Keep user's lastActiveAt and IP telemetry freshly updated (throttled to at most once per 30s)
+    try {
+      const now = Date.now();
+      const lastActiveTime = req.user.lastActiveAt ? new Date(req.user.lastActiveAt).getTime() : 0;
+      if (!req.user.lastLoginIp || now - lastActiveTime > 30000) {
         const { extractClientIp, resolveIpLocation, parseDeviceFormFactor } = require("../utils/networkUtils");
         const clientIp = extractClientIp(req);
         const loc = resolveIpLocation(clientIp);
         const device = parseDeviceFormFactor(req.headers["user-agent"]);
-        req.user.lastLoginIp = clientIp;
-        req.user.lastLoginRegion = loc.region;
-        req.user.lastDevice = device;
-        req.user.lastActiveAt = new Date();
+
+        req.user.lastActiveAt = new Date(now);
+        if (clientIp) req.user.lastLoginIp = clientIp;
+        if (loc.region) req.user.lastLoginRegion = loc.region;
+        if (device) req.user.lastDevice = device;
 
         User.updateOne(
           { _id: req.user._id },
           {
             $set: {
-              lastLoginIp: clientIp,
-              lastLoginRegion: loc.region,
-              lastDevice: device,
-              lastActiveAt: new Date(),
+              lastActiveAt: new Date(now),
+              ...(clientIp ? { lastLoginIp: clientIp } : {}),
+              ...(loc.region ? { lastLoginRegion: loc.region } : {}),
+              ...(device ? { lastDevice: device } : {}),
             },
           }
         ).catch(() => { });
-      } catch (err) {
-        // Silently continue if telemetry resolution fails
       }
+    } catch {
+      // Silently continue if telemetry resolution fails
     }
 
     next();
