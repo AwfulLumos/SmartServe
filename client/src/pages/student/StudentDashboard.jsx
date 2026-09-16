@@ -366,7 +366,7 @@ export default function StudentDashboard() {
         {showProfile ? (
           <ProfileView student={student} onClose={() => setShowProfile(false)} onLogout={handleLogout} />
         ) : activeNav === "qr" ? (
-          <MyQRView student={student} />
+          <MyQRView student={student} profileImageUrl={profileImageUrl} />
         ) : activeNav === "menu" ? (
           menuView === "cart" ? (
             <CartView
@@ -400,35 +400,47 @@ export default function StudentDashboard() {
         )}
       </div>
 
-      {/* ── Bottom Navigation ── */}
-      <nav className="flex-shrink-0 flex items-center bg-white dark:bg-[#1a2416] border-t border-gray-100 dark:border-[#2b3924] px-2 py-2 relative z-10 font-sans">
-        {NAV.map((item) => {
-          const isActive = activeNav === item.key;
-          return (
-            <button
-              key={item.key}
-              onClick={() => handleNavChange(item.key)}
-              className="flex-1 flex flex-col items-center gap-1 py-1"
-            >
-              {isActive ? (
-                <span className="w-10 h-10 rounded-full bg-[#4a6741] dark:bg-[#8ebd7e] text-white dark:text-[#1a2416] flex items-center justify-center">
-                  {item.activeIcon || item.icon}
-                </span>
-              ) : (
-                <span className="w-10 h-10 flex items-center justify-center text-gray-400 dark:text-gray-400">
-                  {item.icon}
-                </span>
-              )}
-              <span
-                className={`text-[10px] font-medium ${isActive ? "text-[#4a6741] dark:text-[#8ebd7e]" : "text-gray-400 dark:text-gray-400"
-                  }`}
+      {/* ── Floating Bottom Navigation Dock ── */}
+      <div className="flex-shrink-0 px-3 pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-1 relative z-30 font-sans pointer-events-none">
+        <nav className="pointer-events-auto max-w-md mx-auto flex items-center bg-white/95 dark:bg-[#1a2416]/95 backdrop-blur-xl border border-gray-200/80 dark:border-[#2b3924] rounded-3xl shadow-xl px-2 py-1.5 justify-around">
+          {NAV.map((item) => {
+            const isActive = activeNav === item.key;
+            const totalCartCount = cart.reduce((sum, i) => sum + i.quantity, 0);
+            return (
+              <button
+                key={item.key}
+                onClick={() => handleNavChange(item.key)}
+                className="flex-1 flex flex-col items-center gap-1 py-1 relative group active:scale-90 transition-transform cursor-pointer"
               >
-                {item.label}
-              </span>
-            </button>
-          );
-        })}
-      </nav>
+                <div className="relative">
+                  {isActive ? (
+                    <span className="w-10 h-10 rounded-2xl bg-[#4a6741] dark:bg-[#8ebd7e] text-white dark:text-[#1a2416] flex items-center justify-center shadow-md shadow-[#4a6741]/25 transition-all">
+                      {item.activeIcon || item.icon}
+                    </span>
+                  ) : (
+                    <span className="w-10 h-10 rounded-2xl flex items-center justify-center text-gray-400 dark:text-gray-400 group-hover:text-gray-600 dark:group-hover:text-gray-200 transition-colors">
+                      {item.icon}
+                    </span>
+                  )}
+
+                  {/* Cart badge on Menu tab */}
+                  {item.key === "menu" && totalCartCount > 0 && (
+                    <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] font-extrabold w-4 h-4 rounded-full flex items-center justify-center shadow-xs animate-pulse border-2 border-white dark:border-[#1a2416]">
+                      {totalCartCount > 9 ? "9+" : totalCartCount}
+                    </span>
+                  )}
+                </div>
+                <span
+                  className={`text-[10px] font-bold transition-colors ${isActive ? "text-[#4a6741] dark:text-[#8ebd7e]" : "text-gray-400 dark:text-gray-400"
+                    }`}
+                >
+                  {item.label}
+                </span>
+              </button>
+            );
+          })}
+        </nav>
+      </div>
     </div>
   );
 }

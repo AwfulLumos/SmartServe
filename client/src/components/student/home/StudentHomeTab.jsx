@@ -26,22 +26,48 @@ export default function StudentHomeTab({
   const byocCount = student?.byocCount ?? 0;
   const ecoInfo = calculateEcoLevel(byocCount);
 
+  const hours = new Date().getHours();
+  let shiftText = "Cafeteria Service Active";
+  if (hours >= 6 && hours < 10) shiftText = "Breakfast Shift Serving";
+  else if (hours >= 10 && hours < 14) shiftText = "Lunch Rush Serving";
+  else if (hours >= 14 && hours < 18) shiftText = "Afternoon Snacks Serving";
+  else shiftText = "Kitchen Closed · Prep Mode";
+
   return (
-    <main className="flex-1 overflow-y-auto pb-20 font-sans">
+    <main className="flex-1 overflow-y-auto pb-24 font-sans">
       {/* ── Hero Banner ── */}
-      <div className="bg-[#4a6741] px-5 pt-5 pb-28 relative overflow-hidden">
-        <div className="absolute right-0 top-0 w-40 h-40 rounded-full bg-white/5 -translate-y-1/4 translate-x-1/4" />
-        <div className="flex items-center gap-1.5 mb-1">
-          <span className="text-white/80 text-base">✦</span>
-          <p className="text-sm text-white/80">Good to see you</p>
+      <div className="bg-[#4a6741] px-5 pt-5 pb-24 relative overflow-hidden">
+        <div className="absolute right-0 top-0 w-40 h-40 rounded-full bg-white/5 -translate-y-1/4 translate-x-1/4 pointer-events-none" />
+
+        {/* Live Order Alert Capsule (if order is active) */}
+        {activeOrders.length > 0 && (
+          <div
+            onClick={() => handleNavChange("orders")}
+            className="mb-3 inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-emerald-500/30 hover:bg-emerald-500/40 backdrop-blur-md border border-emerald-300/40 text-white text-xs font-bold cursor-pointer transition active:scale-95 shadow-xs"
+          >
+            <span className="w-2 h-2 rounded-full bg-emerald-300 animate-ping flex-shrink-0" />
+            <span className="truncate">Order #{activeOrders[0].orderNumber}: {activeOrders[0].status?.toUpperCase()}</span>
+            <span className="text-emerald-200 text-[11px] underline flex-shrink-0 ml-1">Track Live ›</span>
+          </div>
+        )}
+
+        <div className="flex items-center justify-between gap-2 mb-1 flex-wrap">
+          <div className="flex items-center gap-1.5">
+            <span className="text-white/80 text-base">✦</span>
+            <p className="text-xs sm:text-sm text-white/80">Good to see you</p>
+          </div>
+          <span className="text-[11px] font-semibold bg-white/15 backdrop-blur-md px-2.5 py-0.5 rounded-full text-emerald-100">
+            {shiftText}
+          </span>
         </div>
-        <h1 className="text-4xl font-extrabold text-white leading-tight">Hi, {firstName}</h1>
-        <p className="text-sm text-white/70 mt-1">Ready for a tasty day?</p>
+
+        <h1 className="text-3xl sm:text-4xl font-extrabold text-white leading-tight">Hi, {firstName}</h1>
+        <p className="text-xs sm:text-sm text-white/70 mt-1">Ready for a fresh, delicious meal?</p>
       </div>
 
       {/* ── Floating Card ── */}
-      <div className="mx-4 -mt-20 bg-white dark:bg-[#1a2416] rounded-3xl shadow-xl p-5 relative z-10 border border-transparent dark:border-[#2b3924]">
-        <div className="bg-gradient-to-br from-[#7fb060] to-[#4a6741] rounded-2xl px-5 py-5 mb-4 text-white shadow-sm">
+      <div className="mx-4 -mt-16 bg-white dark:bg-[#1a2416] rounded-3xl shadow-xl p-4 sm:p-5 relative z-10 border border-gray-100/50 dark:border-[#2b3924]">
+        <div className="bg-gradient-to-br from-[#7fb060] via-[#5d8152] to-[#4a6741] rounded-2xl px-5 py-5 mb-4 text-white shadow-sm">
           <div className="flex items-center justify-between gap-2 mb-2">
             <div className="flex items-center gap-2">
               <div className="w-9 h-9 rounded-xl bg-white/20 flex items-center justify-center">
@@ -54,7 +80,7 @@ export default function StudentHomeTab({
             </span>
           </div>
 
-          <p className="text-5xl font-extrabold text-white leading-none mb-1">
+          <p className="text-4xl sm:text-5xl font-extrabold text-white leading-none mb-1">
             {student?.points ?? 0}
           </p>
           <div className="mt-3 bg-black/20 rounded-xl p-2.5">
@@ -74,17 +100,17 @@ export default function StudentHomeTab({
         <div className="grid grid-cols-2 gap-3">
           <button
             onClick={() => handleNavChange("qr")}
-            className="flex items-center justify-center gap-2 bg-[#4a6741] hover:bg-[#3a5333] text-white font-semibold py-3 rounded-2xl transition text-sm"
+            className="flex items-center justify-center gap-2 bg-[#4a6741] hover:bg-[#3a5333] active:scale-95 text-white font-bold py-3 min-h-[44px] rounded-2xl transition text-sm cursor-pointer shadow-xs"
           >
-            <MdQrCode2 className="text-base" />
-            Show QR
+            <MdQrCode2 className="text-lg" />
+            <span>Show QR</span>
           </button>
           <button
             onClick={() => handleNavChange("rewards")}
-            className="flex items-center justify-center gap-2 bg-white dark:bg-[#24301f] border-2 border-[#4a6741] dark:border-[#8ebd7e] text-[#4a6741] dark:text-[#8ebd7e] hover:bg-[#f0f7ec] dark:hover:bg-[#2e4028] font-semibold py-3 rounded-2xl transition text-sm"
+            className="flex items-center justify-center gap-2 bg-white dark:bg-[#24301f] border-2 border-[#4a6741] dark:border-[#8ebd7e] text-[#4a6741] dark:text-[#8ebd7e] hover:bg-[#f0f7ec] dark:hover:bg-[#2e4028] active:scale-95 font-bold py-3 min-h-[44px] rounded-2xl transition text-sm cursor-pointer"
           >
-            <IoGiftOutline className="text-base" />
-            Rewards
+            <IoGiftOutline className="text-lg" />
+            <span>Rewards</span>
           </button>
         </div>
       </div>
@@ -157,13 +183,12 @@ export default function StudentHomeTab({
             activity.map((item) => (
               <div key={item.id} className="flex items-center gap-4 px-4 py-3.5">
                 <div
-                  className={`w-11 h-11 rounded-2xl flex items-center justify-center flex-shrink-0 ${
-                    item.type === "redeem"
-                      ? "bg-[#4a6741]"
-                      : item.type === "byoc"
+                  className={`w-11 h-11 rounded-2xl flex items-center justify-center flex-shrink-0 ${item.type === "redeem"
+                    ? "bg-[#4a6741]"
+                    : item.type === "byoc"
                       ? "bg-[#7fb060]"
                       : "bg-[#d7ecc8] dark:bg-[#2e4028]"
-                  }`}
+                    }`}
                 >
                   {item.type === "redeem" ? (
                     <IoGiftOutline className="text-white text-lg" />
