@@ -378,9 +378,6 @@ export default function StaffTab() {
                           </button>
                         </div>
                         <div className="flex items-center gap-1.5 text-[10px] text-gray-500">
-                          <span className="px-1 rounded bg-blue-50 text-blue-700 font-semibold font-mono border border-blue-200 text-[9px]">
-                            VLAN 10
-                          </span>
                           <span className="flex items-center gap-0.5 text-gray-500">
                             <IoLocationOutline className="text-emerald-600 text-xs flex-shrink-0" />
                             Philippines

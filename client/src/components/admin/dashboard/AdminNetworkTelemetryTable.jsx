@@ -9,12 +9,10 @@ import {
   IoLocationOutline,
   IoCheckmarkOutline,
   IoCopyOutline,
-  IoPlayOutline,
-  IoHelpCircleOutline,
+  IoInformationCircleOutline,
 } from "react-icons/io5";
 import { SkeletonTable } from "../../SkeletonLoader";
 import api from "../../../utils/api";
-import NetworkGuideModal from "../menu/NetworkGuideModal";
 
 const resolveImageUrl = (url) => {
   if (!url) return "";
@@ -62,7 +60,6 @@ export default function AdminNetworkTelemetryTable({ navigate }) {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [copiedIp, setCopiedIp] = useState(null);
-  const [showGuide, setShowGuide] = useState(false);
 
   useEffect(() => {
     let isMounted = true;
@@ -122,24 +119,15 @@ export default function AdminNetworkTelemetryTable({ navigate }) {
         <div className="flex items-center gap-2.5 sm:self-center">
           <div className="hidden sm:flex items-center gap-2 text-xs">
             <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-700 font-semibold border border-emerald-100">
-              <IoWifiOutline /> {stats.studentsOnWifi ?? stats.studentWifiSessions ?? 0} Wi-Fi (VLAN 20)
+              <IoWifiOutline /> {stats.studentsOnWifi ?? stats.totalStudents ?? 0} Students
             </span>
             <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-purple-50 text-purple-700 font-semibold border border-purple-100">
-              <IoDesktopOutline /> {stats.adminsOnLan ?? stats.adminLanSessions ?? 0} LAN (VLAN 10)
+              <IoDesktopOutline /> {stats.adminsOnLan ?? stats.totalStaffAdmins ?? 0} Staff & Admins
             </span>
           </div>
 
           <button
-            onClick={() => setShowGuide(true)}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-[#4a6741]/10 text-[#4a6741] hover:bg-[#4a6741]/20 border border-[#4a6741]/30 transition cursor-pointer shadow-xs ml-auto sm:ml-0"
-            title="Open Network Architecture & Security Guide"
-          >
-            <IoHelpCircleOutline className="text-sm" />
-            <span>Guide</span>
-          </button>
-
-          <button
-            onClick={() => navigate("/dashboard/settings/network?subTab=sessions", { state: { subTab: "sessions" } })}
+            onClick={() => navigate("/dashboard/settings/tracker")}
             className="flex items-center gap-1 text-xs font-semibold text-[#4a6741] hover:underline cursor-pointer"
           >
             View All <IoArrowForwardOutline />
@@ -180,7 +168,6 @@ export default function AdminNetworkTelemetryTable({ navigate }) {
                   device.toLowerCase().includes("mobile") ||
                   device.toLowerCase().includes("phone");
                 const isStudent = session.userType !== "admin";
-                const isVlan20 = session.vlanId === 20;
                 const lastActive = session.lastActive || session.lastActiveAt;
                 const identifier = session.userId || session.schoolId || session.identifier || "—";
 
@@ -198,7 +185,7 @@ export default function AdminNetworkTelemetryTable({ navigate }) {
                   <tr
                     key={session._id || idx}
                     className="hover:bg-gray-50/60 transition cursor-pointer"
-                    onClick={() => navigate("/dashboard/settings/network?subTab=sessions", { state: { subTab: "sessions" } })}
+                    onClick={() => navigate("/dashboard/settings/tracker")}
                   >
                     {/* User / Student */}
                     <td className="py-3.5 px-4">
@@ -245,10 +232,7 @@ export default function AdminNetworkTelemetryTable({ navigate }) {
                     {/* Assigned IP Address */}
                     <td className="py-3.5 px-4">
                       <div className="flex items-center gap-2">
-                        <span
-                          className={`font-mono font-bold text-xs ${isVlan20 ? "text-emerald-700" : "text-purple-700"
-                            }`}
-                        >
+                        <span className="font-mono font-bold text-xs text-gray-800">
                           {ip || "—"}
                         </span>
                         {ip && (
@@ -264,14 +248,6 @@ export default function AdminNetworkTelemetryTable({ navigate }) {
                             )}
                           </button>
                         )}
-                        <span
-                          className={`text-[9px] font-mono px-1.5 py-0.5 rounded font-semibold ${isVlan20
-                            ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
-                            : "bg-purple-50 text-purple-700 border border-purple-200"
-                            }`}
-                        >
-                          VLAN {session.vlanId || (isStudent ? 20 : 10)}
-                        </span>
                       </div>
                     </td>
 
@@ -317,15 +293,13 @@ export default function AdminNetworkTelemetryTable({ navigate }) {
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
-                          navigate("/dashboard/settings/network?subTab=simulator", {
-                            state: { subTab: "simulator", simIp: ip },
-                          });
+                          navigate("/dashboard/settings/tracker");
                         }}
                         className="inline-flex items-center gap-1 px-2.5 py-1 bg-gray-100 hover:bg-[#4a6741] hover:text-white rounded-lg text-[10px] font-bold text-gray-700 transition cursor-pointer"
-                        title="Test this user IP in firewall packet tester"
+                        title="View all in Users & IP Tracker"
                       >
-                        <IoPlayOutline className="text-xs" />
-                        Simulate
+                        <IoInformationCircleOutline className="text-xs" />
+                        Inspect
                       </button>
                     </td>
                   </tr>
@@ -335,9 +309,7 @@ export default function AdminNetworkTelemetryTable({ navigate }) {
           </table>
         </div>
       )}
-
-      {/* Network Architecture & Security In-App Comprehensive Guide Modal */}
-      <NetworkGuideModal isOpen={showGuide} onClose={() => setShowGuide(false)} />
     </div>
   );
 }
+

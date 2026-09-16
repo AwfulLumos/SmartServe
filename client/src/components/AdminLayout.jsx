@@ -29,7 +29,7 @@ import {
   IoChatbubblesOutline,
   IoTimeOutline,
   IoCalendarOutline,
-  IoGitNetworkOutline,
+  IoGlobeOutline,
 } from "react-icons/io5";
 import { MdPeopleOutline, MdMenuBook, MdHistoryEdu } from "react-icons/md";
 
@@ -452,7 +452,7 @@ const navItems = [
   { label: "Analytics", icon: <IoBarChartOutline />, to: "/dashboard/analytics" },
   { label: "Feedbacks", icon: <IoChatbubblesOutline />, to: "/dashboard/feedbacks" },
   { label: "Staff Accounts", icon: <MdPeopleOutline />, to: "/dashboard/settings/staff" },
-  { label: "Network & Security", icon: <IoGitNetworkOutline />, to: "/dashboard/settings/network" },
+  { label: "Users & IP Tracker", icon: <IoGlobeOutline />, to: "/dashboard/settings/tracker" },
   { label: "Audit Log", icon: <MdHistoryEdu />, to: "/dashboard/settings/audit" },
 ];
 

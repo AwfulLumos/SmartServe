@@ -106,24 +106,20 @@ function extractClientIp(req, allowSimulated = true) {
 function resolveIpLocation(ip) {
   const cleanIp = normalizeIp(ip);
 
-  // 1. VLAN 10 Check: Campus Admin LAN
+  // 1. Campus Admin LAN
   if (isIpInCidr(cleanIp, "192.168.1.0/24")) {
     return {
-      vlanId: 10,
-      vlanName: "VLAN 10 - Admin Network",
-      zone: "Campus Admin LAN (Office / Management)",
-      region: "Campus Admin Building, Bulacan / NCR",
+      zone: "Campus Admin Network",
+      region: "Philippines",
       isInternal: true,
     };
   }
 
-  // 2. VLAN 20 Check: Campus Cafeteria Student Wi-Fi
+  // 2. Campus Cafeteria Student Wi-Fi
   if (isIpInCidr(cleanIp, "172.16.0.0/20")) {
     return {
-      vlanId: 20,
-      vlanName: "VLAN 20 - Student Wi-Fi",
-      zone: "Campus Cafeteria Wi-Fi (Student BYOD Zone)",
-      region: "School Cafeteria Dining Hall, Bulacan / NCR",
+      zone: "Campus Student Wi-Fi",
+      region: "Philippines",
       isInternal: true,
     };
   }
@@ -131,10 +127,8 @@ function resolveIpLocation(ip) {
   // 3. Loopback / Developer Station
   if (isLoopback(cleanIp)) {
     return {
-      vlanId: 10,
-      vlanName: "VLAN 10 - Localhost Gateway",
-      zone: "Localhost / Developer Workstation",
-      region: "Campus Server Room (Local Loopback)",
+      zone: "Local Workstation",
+      region: "Philippines",
       isInternal: true,
     };
   }
@@ -146,19 +140,15 @@ function resolveIpLocation(ip) {
     cleanIp.startsWith("172.")
   ) {
     return {
-      vlanId: 0,
-      vlanName: "External Private LAN",
-      zone: "Campus Intranet / Auxiliary Subnet",
-      region: "Campus Facilities / Local LAN",
+      zone: "Campus Local Network",
+      region: "Philippines",
       isInternal: true,
     };
   }
 
   // 5. External Public IP (Recognized as Philippines Internet / Cellular WAN)
   return {
-    vlanId: 0,
-    vlanName: "External Internet / Cellular WAN",
-    zone: "Philippines",
+    zone: "Philippines Network",
     region: "Philippines",
     isInternal: false,
   };
