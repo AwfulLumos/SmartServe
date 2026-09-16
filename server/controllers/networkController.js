@@ -1,5 +1,6 @@
 const Student = require("../models/Student");
 const User = require("../models/User");
+const FailedLogin = require("../models/FailedLogin");
 const { resolveIpLocation } = require("../utils/networkUtils");
 
 /**
@@ -158,3 +159,150 @@ exports.pingIp = async (req, res) => {
     res.status(500).json({ error: "Ping failed", details: err.message });
   }
 };
+
+/**
+ * GET /api/network/failed-logins
+ * Returns paginated failed login attempt logs with stats and filtering.
+ */
+exports.getFailedLogins = async (req, res) => {
+  try {
+    const {
+      search = "",
+      accountType = "all",
+      deviceType = "all",
+      page = 1,
+      limit = 15,
+    } = req.query;
+
+    const query = {};
+
+    // 1. Account type filter
+    if (accountType && accountType !== "all") {
+      if (accountType === "staff_admin") {
+        query.accountType = { $in: ["staff", "admin"] };
+      } else {
+        query.accountType = accountType;
+      }
+    }
+
+    // 2. Device filter
+    if (deviceType && deviceType !== "all") {
+      if (deviceType === "mobile") {
+        query.deviceType = { $regex: /mobile|phone/i };
+      } else if (deviceType === "desktop") {
+        query.deviceType = { $regex: /desktop|laptop|pc|workstation/i };
+      } else if (deviceType === "tablet") {
+        query.deviceType = { $regex: /tablet|ipad/i };
+      }
+    }
+
+    // 3. Search query
+    if (search && search.trim()) {
+      const q = search.trim();
+      query.$or = [
+        { name: { $regex: q, $options: "i" } },
+        { identifier: { $regex: q, $options: "i" } },
+        { email: { $regex: q, $options: "i" } },
+        { ipAddress: { $regex: q, $options: "i" } },
+        { reason: { $regex: q, $options: "i" } },
+        { deviceType: { $regex: q, $options: "i" } },
+      ];
+    }
+
+    const pageNum = Math.max(1, parseInt(page, 10) || 1);
+    const limitNum = Math.min(100, Math.max(1, parseInt(limit, 10) || 15));
+    const skip = (pageNum - 1) * limitNum;
+
+    // Run queries concurrently
+    const [attempts, total, totalCount, studentCount, staffAdminCount, recent24hCount] = await Promise.all([
+      FailedLogin.find(query)
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limitNum)
+        .lean(),
+      FailedLogin.countDocuments(query),
+      FailedLogin.countDocuments(),
+      FailedLogin.countDocuments({ accountType: "student" }),
+      FailedLogin.countDocuments({ accountType: { $in: ["staff", "admin"] } }),
+      FailedLogin.countDocuments({
+        createdAt: { $gte: new Date(Date.now() - 24 * 60 * 60 * 1000) },
+      }),
+    ]);
+
+    const formattedAttempts = attempts.map((a) => ({
+      _id: a._id,
+      identifier: a.identifier,
+      userId: a.identifier,
+      name: a.name || "Unregistered Account",
+      email: a.email || "",
+      accountType: a.accountType,
+      role: a.accountType,
+      roleLabel:
+        a.accountType === "student"
+          ? "Student Account"
+          : a.accountType === "admin"
+            ? "System Administrator"
+            : a.accountType === "staff"
+              ? "Campus Staff"
+              : "Unknown User",
+      ipAddress: a.ipAddress,
+      ip: a.ipAddress,
+      region: "Philippines",
+      deviceType: a.deviceType || "Desktop / Laptop",
+      device: a.deviceType || "Desktop / Laptop",
+      userAgent: a.userAgent || "",
+      reason: a.reason || "Invalid credentials",
+      attemptedAt: a.createdAt,
+      createdAt: a.createdAt,
+    }));
+
+    res.json({
+      stats: {
+        total: totalCount,
+        studentTotal: studentCount,
+        staffAdminTotal: staffAdminCount,
+        recent24h: recent24hCount,
+      },
+      attempts: formattedAttempts,
+      total,
+      page: pageNum,
+      pages: Math.ceil(total / limitNum) || 1,
+    });
+  } catch (err) {
+    res.status(500).json({ error: "Failed to fetch failed login records", details: err.message });
+  }
+};
+
+/**
+ * DELETE /api/network/failed-logins/:id
+ * Removes a single failed login attempt record.
+ */
+exports.deleteFailedLogin = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const deleted = await FailedLogin.findByIdAndDelete(id);
+    if (!deleted) {
+      return res.status(404).json({ message: "Record not found" });
+    }
+    res.json({ message: "Failed login entry removed successfully" });
+  } catch (err) {
+    res.status(500).json({ error: "Failed to delete record", details: err.message });
+  }
+};
+
+/**
+ * DELETE /api/network/failed-logins/clear-all
+ * Clears all failed login attempt logs.
+ */
+exports.clearFailedLogins = async (req, res) => {
+  try {
+    const result = await FailedLogin.deleteMany({});
+    res.json({
+      message: `Successfully cleared ${result.deletedCount} failed login record(s)`,
+      deletedCount: result.deletedCount,
+    });
+  } catch (err) {
+    res.status(500).json({ error: "Failed to clear records", details: err.message });
+  }
+};
+

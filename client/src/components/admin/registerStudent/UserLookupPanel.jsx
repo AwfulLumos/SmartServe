@@ -317,7 +317,7 @@ export default function UserLookupPanel({
                   userByoc.map((b) => (
                     <div key={b._id} className="bg-gray-50 p-3 rounded-xl border border-gray-100 flex items-center justify-between text-xs">
                       <div>
-                        <p className="font-semibold text-gray-800">+{b.ecoPoints} Eco Points Earned 🌿</p>
+                        <p className="font-semibold text-gray-800">+{b.ecoPoints} Eco Points Earned</p>
                         <p className="text-[10px] text-gray-400 mt-0.5">Approved by: {b.confirmedByName || "Staff"}</p>
                       </div>
                       <span className="text-[10px] text-gray-400">
@@ -341,7 +341,7 @@ export default function UserLookupPanel({
                   userRedemptions.map((r) => (
                     <div key={r._id} className="bg-gray-50 p-3 rounded-xl border border-gray-100 flex items-center justify-between text-xs">
                       <div>
-                        <p className="font-semibold text-gray-800">🎁 {r.rewardName}</p>
+                        <p className="font-semibold text-gray-800">{r.rewardName}</p>
                         <p className="text-[10px] text-purple-600 font-medium mt-0.5">Used {r.pointsUsed} points</p>
                       </div>
                       <span className="text-[10px] text-gray-400">

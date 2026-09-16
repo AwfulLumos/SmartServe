@@ -26,6 +26,48 @@ const fmt = (date) => {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")} ${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
 };
 
+const resolveImageUrl = (url) => {
+  if (!url) return "";
+  if (url.startsWith("http://") || url.startsWith("https://") || url.startsWith("data:")) return url;
+  const apiBase = import.meta.env.VITE_API_URL || "/api";
+  if (apiBase.startsWith("http")) {
+    return `${apiBase.replace(/\/api\/?$/, "")}${url}`;
+  }
+  return url;
+};
+
+const formatTimeAgo = (rawDate) => {
+  if (!rawDate) return { relative: "Never", full: "No recorded activity", isRecent: false };
+  const d = new Date(rawDate);
+  if (isNaN(d.getTime())) return { relative: "Unknown", full: String(rawDate), isRecent: false };
+
+  const now = Date.now();
+  const diffMs = now - d.getTime();
+  const full = d.toLocaleString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: true,
+  });
+
+  if (diffMs < 60000 && diffMs > -10000) {
+    return { relative: "Just now", full, isRecent: true };
+  }
+  const diffSec = Math.floor(diffMs / 1000);
+  const diffMin = Math.floor(diffSec / 60);
+  if (diffMin < 60) return { relative: `${diffMin}m ago`, full, isRecent: diffMin <= 15 };
+  const diffHours = Math.floor(diffMin / 60);
+  if (diffHours < 24) return { relative: `${diffHours}h ago`, full, isRecent: false };
+  const diffDays = Math.floor(diffHours / 24);
+  if (diffDays < 7) return { relative: `${diffDays}d ago`, full, isRecent: false };
+
+  const shortDate = d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+  return { relative: shortDate, full, isRecent: false };
+};
+
 export default function StaffTab() {
   const { user, resetStaffPassword } = useAuth();
   const [staff, setStaff] = useState([]);
@@ -192,79 +234,139 @@ export default function StaffTab() {
           </div>
           <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
             {loading ? (
-              <div className="p-4">
-                <SkeletonTable rows={4} columns={5} showHeader={false} />
+              <div className="p-5">
+                <SkeletonTable rows={4} columns={7} showHeader={false} />
               </div>
             ) : pending.length === 0 ? (
               <div className="flex items-center gap-2 px-5 py-5 text-gray-400 text-sm">
-                <IoCheckmarkCircle className="text-green-500 text-lg" />
+                <IoCheckmarkCircle className="text-emerald-500 text-lg" />
                 No pending approvals.
               </div>
             ) : (
-              <ul className="divide-y divide-gray-50">
-                {pending.map((p) => (
-                  <li key={p._id} className="flex items-center gap-4 px-5 py-3.5 hover:bg-gray-50 transition">
-                    <div className="w-9 h-9 rounded-full bg-amber-100 flex items-center justify-center text-amber-700 font-bold text-sm flex-shrink-0">
-                      {p.fullName?.[0]?.toUpperCase()}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-gray-800 truncate">{p.fullName}</p>
-                      <p className="text-xs text-gray-500 truncate">{p.email}</p>
-                      {p.lastLoginIp ? (
-                        <div className="flex items-center gap-1.5 mt-0.5">
-                          <span className="inline-flex items-center gap-1 text-[10px] text-gray-600 font-mono">
-                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block animate-pulse flex-shrink-0" />
-                            <span className="font-semibold text-emerald-700">{p.lastLoginIp}</span>
-                            <span className="text-gray-400">•</span>
-                            <span className="text-gray-500">Philippines</span>
-                          </span>
-                          <button
-                            type="button"
-                            onClick={(e) => copyIp(p.lastLoginIp, e)}
-                            className="text-gray-400 hover:text-gray-600 transition"
-                            title="Copy IP"
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs">
+                  <thead>
+                    <tr className="bg-gray-50/80 border-b border-gray-100 text-gray-500 uppercase font-bold text-[10px] tracking-wider">
+                      <th className="py-3.5 px-4">Applicant / Staff</th>
+                      <th className="py-3.5 px-4">Requested Role</th>
+                      <th className="py-3.5 px-4">Assigned IP Address</th>
+                      <th className="py-3.5 px-4">Region</th>
+                      <th className="py-3.5 px-4">Status</th>
+                      <th className="py-3.5 px-4">Applied Date</th>
+                      <th className="py-3.5 px-4 text-right">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100 text-gray-700">
+                    {pending.map((p) => (
+                      <tr key={p._id} className="hover:bg-amber-50/30 transition group">
+                        {/* Column 1: Applicant / Staff */}
+                        <td className="py-3.5 px-4 whitespace-nowrap">
+                          <div className="flex items-center gap-3">
+                            <div className="w-9 h-9 rounded-full bg-amber-100 border border-amber-200 flex items-center justify-center text-amber-700 font-bold text-xs flex-shrink-0 overflow-hidden">
+                              {p.fullName?.[0]?.toUpperCase()}
+                            </div>
+                            <div className="min-w-0">
+                              <span className="font-bold text-gray-900 block truncate group-hover:text-[#4a6741] transition">
+                                {p.fullName}
+                              </span>
+                              <span className="text-[11px] text-gray-400 font-mono block truncate">
+                                {p.email}
+                              </span>
+                            </div>
+                          </div>
+                        </td>
+
+                        {/* Column 2: Requested Role */}
+                        <td className="py-3.5 px-4 whitespace-nowrap">
+                          <span
+                            className={`text-[10px] font-bold px-2.5 py-1 rounded-full border ${p.role === "admin"
+                                ? "bg-purple-50 text-purple-700 border-purple-200"
+                                : "bg-sky-50 text-sky-700 border-sky-200"
+                              }`}
                           >
-                            {copiedIp === p.lastLoginIp ? (
-                              <IoCheckmarkOutline className="text-emerald-600 text-xs" />
-                            ) : (
-                              <IoCopyOutline className="text-xs" />
-                            )}
-                          </button>
-                        </div>
-                      ) : (
-                        <span className="text-[10px] text-gray-400 italic">No IP recorded</span>
-                      )}
-                    </div>
-                    <span className={`text-[10px] font-semibold px-2.5 py-0.5 rounded-full flex-shrink-0 ${roleBadge(p.role)}`}>
-                      {p.role.charAt(0).toUpperCase() + p.role.slice(1)}
-                    </span>
-                    <span className="text-[10px] font-semibold px-2.5 py-0.5 rounded-full bg-amber-100 text-amber-700 flex-shrink-0">Pending</span>
-                    <span className="text-xs text-gray-400 font-mono flex-shrink-0">{fmt(p.createdAt)}</span>
-                    <div className="flex items-center gap-2 flex-shrink-0">
-                      <button
-                        onClick={() => handleApprove(p._id)}
-                        disabled={!!actionLoading[p._id]}
-                        className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 bg-[#4a6741] hover:bg-[#3a5333] text-white rounded-lg transition disabled:opacity-60"
-                      >
-                        {actionLoading[p._id] === "approve"
-                          ? <IoRefreshOutline className="animate-spin text-sm" />
-                          : <IoCheckmarkCircle className="text-sm" />}
-                        Approve
-                      </button>
-                      <button
-                        onClick={() => handleDecline(p._id)}
-                        disabled={!!actionLoading[p._id]}
-                        className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 bg-red-50 hover:bg-red-100 text-red-500 border border-red-200 rounded-lg transition disabled:opacity-60"
-                      >
-                        {actionLoading[p._id] === "decline"
-                          ? <IoRefreshOutline className="animate-spin text-sm" />
-                          : <IoAlertCircleOutline className="text-sm" />}
-                        Decline
-                      </button>
-                    </div>
-                  </li>
-                ))}
-              </ul>
+                            {p.role === "admin" ? "System Administrator" : "Campus Staff"}
+                          </span>
+                        </td>
+
+                        {/* Column 3: Assigned IP Address */}
+                        <td className="py-3.5 px-4 whitespace-nowrap">
+                          {p.lastLoginIp ? (
+                            <div className="flex items-center gap-2">
+                              <span className="font-mono font-bold text-xs text-gray-800">
+                                {p.lastLoginIp}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={(e) => copyIp(p.lastLoginIp, e)}
+                                className="text-gray-400 hover:text-gray-600 p-1 rounded hover:bg-gray-100 transition cursor-pointer"
+                                title="Copy IP"
+                              >
+                                {copiedIp === p.lastLoginIp ? (
+                                  <IoCheckmarkOutline className="text-emerald-600 text-sm" />
+                                ) : (
+                                  <IoCopyOutline className="text-xs" />
+                                )}
+                              </button>
+                            </div>
+                          ) : (
+                            <span className="text-xs text-gray-400 italic font-mono">No IP recorded</span>
+                          )}
+                        </td>
+
+                        {/* Column 4: Region */}
+                        <td className="py-3.5 px-4 whitespace-nowrap">
+                          <div className="flex items-center gap-1.5">
+                            <IoLocationOutline className="text-red-500 text-sm flex-shrink-0" />
+                            <span className="font-semibold text-gray-800 text-xs">Philippines</span>
+                          </div>
+                        </td>
+
+                        {/* Column 5: Status */}
+                        <td className="py-3.5 px-4 whitespace-nowrap">
+                          <span className="text-[10px] font-bold px-2.5 py-1 rounded-full border bg-amber-50 text-amber-700 border-amber-200">
+                            Pending Approval
+                          </span>
+                        </td>
+
+                        {/* Column 6: Applied Date */}
+                        <td className="py-3.5 px-4 whitespace-nowrap">
+                          <span className="text-xs text-gray-400 font-mono">{fmt(p.createdAt)}</span>
+                        </td>
+
+                        {/* Column 7: Actions */}
+                        <td className="py-3.5 px-4 text-right whitespace-nowrap">
+                          <div className="flex items-center justify-end gap-2">
+                            <button
+                              onClick={() => handleApprove(p._id)}
+                              disabled={!!actionLoading[p._id]}
+                              className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 bg-[#4a6741] hover:bg-[#3a5333] text-white rounded-lg transition disabled:opacity-60 cursor-pointer shadow-xs"
+                            >
+                              {actionLoading[p._id] === "approve" ? (
+                                <IoRefreshOutline className="animate-spin text-sm" />
+                              ) : (
+                                <IoCheckmarkCircle className="text-sm" />
+                              )}
+                              Approve
+                            </button>
+                            <button
+                              onClick={() => handleDecline(p._id)}
+                              disabled={!!actionLoading[p._id]}
+                              className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 bg-red-50 hover:bg-red-100 text-red-500 border border-red-200 rounded-lg transition disabled:opacity-60 cursor-pointer"
+                            >
+                              {actionLoading[p._id] === "decline" ? (
+                                <IoRefreshOutline className="animate-spin text-sm" />
+                              ) : (
+                                <IoAlertCircleOutline className="text-sm" />
+                              )}
+                              Decline
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             )}
           </div>
         </div>
@@ -332,95 +434,155 @@ export default function StaffTab() {
 
         {/* Table */}
         <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-          <div className="grid grid-cols-[1.3fr_1.6fr_1.4fr_0.8fr_0.7fr_1fr_40px] items-center px-5 py-3 bg-gray-50 border-b border-gray-100 text-xs font-semibold text-gray-400 uppercase tracking-wide rounded-t-2xl">
-            <span>Name</span>
-            <span>Email</span>
-            <span>IP Address & Region</span>
-            <span>Role</span>
-            <span>Status</span>
-            <span>Last Active</span>
-            <span></span>
-          </div>
-
           {loading ? (
-            <div className="p-4">
-              <SkeletonTable rows={5} columns={7} showHeader={false} />
+            <div className="p-5">
+              <SkeletonTable rows={6} columns={7} showHeader={false} />
             </div>
           ) : filteredStaff.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-16 text-gray-400 gap-2">
               <MdPeopleOutline className="text-4xl text-gray-300" />
-              <p className="text-sm">{search || roleFilter !== "all" ? "No matching accounts found." : "No staff accounts yet."}</p>
+              <p className="text-sm font-medium">{search || roleFilter !== "all" ? "No matching accounts found." : "No staff accounts yet."}</p>
             </div>
           ) : (
-            <ul className="divide-y divide-gray-50">
-              {filteredStaff.map((s) => (
-                <li key={s._id} className="grid grid-cols-[1.3fr_1.6fr_1.4fr_0.8fr_0.7fr_1fr_40px] items-center px-5 py-3.5 hover:bg-gray-50 transition">
-                  <span className="text-sm font-medium text-gray-800 truncate">{s.fullName}</span>
-                  <span className="text-xs text-gray-500 truncate">{s.email}</span>
-                  <div className="flex flex-col min-w-0 pr-2">
-                    {s.lastLoginIp ? (
-                      <div className="flex flex-col gap-0.5">
-                        <div className="flex items-center gap-1.5">
-                          <code className="font-mono text-xs font-bold text-gray-900 bg-gray-100 px-1.5 py-0.5 rounded border border-gray-200">
-                            {s.lastLoginIp}
-                          </code>
-                          <button
-                            type="button"
-                            onClick={(e) => copyIp(s.lastLoginIp, e)}
-                            className="p-1 hover:bg-gray-200/60 rounded text-gray-400 hover:text-gray-700 transition"
-                            title="Copy IP"
-                          >
-                            {copiedIp === s.lastLoginIp ? (
-                              <IoCheckmarkOutline className="text-emerald-600 text-xs" />
-                            ) : (
-                              <IoCopyOutline className="text-xs" />
-                            )}
-                          </button>
-                        </div>
-                        <div className="flex items-center gap-1.5 text-[10px] text-gray-500">
-                          <span className="flex items-center gap-0.5 text-gray-500">
-                            <IoLocationOutline className="text-emerald-600 text-xs flex-shrink-0" />
-                            Philippines
-                          </span>
-                        </div>
-                      </div>
-                    ) : (
-                      <span className="text-xs text-gray-400 italic font-mono">No IP recorded</span>
-                    )}
-                  </div>
-                  <span>
-                    <span className={`text-[10px] font-semibold px-2.5 py-0.5 rounded-full ${roleBadge(s.role)}`}>
-                      {s.role.charAt(0).toUpperCase() + s.role.slice(1)}
-                    </span>
-                  </span>
-                  <span>
-                    <span className="text-[10px] font-semibold px-2.5 py-0.5 rounded-full bg-[#d7ecc8] text-[#4a6741]">
-                      Approved
-                    </span>
-                  </span>
-                  <span className="text-xs text-gray-400 font-mono">{fmt(s.lastActiveAt || s.lastLoginAt || s.updatedAt)}</span>
-                  <span className="flex justify-end">
-                    {s._id !== user?._id && (
-                      <button
-                        onClick={() => openDelete(s)}
-                        title="Delete account"
-                        className="p-1.5 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 transition"
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs">
+                <thead>
+                  <tr className="bg-gray-50/80 border-b border-gray-100 text-gray-500 uppercase font-bold text-[10px] tracking-wider">
+                    <th className="py-3.5 px-4">User / Staff</th>
+                    <th className="py-3.5 px-4">Role</th>
+                    <th className="py-3.5 px-4">Status</th>
+                    <th className="py-3.5 px-4">Assigned IP Address</th>
+                    <th className="py-3.5 px-4">Region</th>
+                    <th className="py-3.5 px-4">Last Activity</th>
+                    <th className="py-3.5 px-4 text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100 text-gray-700">
+                  {filteredStaff.map((s) => {
+                    const lastActive = s.lastActiveAt || s.lastLoginAt || s.updatedAt;
+                    const timeInfo = formatTimeAgo(lastActive);
+
+                    return (
+                      <tr
+                        key={s._id}
+                        className="hover:bg-[#d7ecc8]/10 transition group"
                       >
-                        <IoTrashOutline className="text-base" />
-                      </button>
-                    )}
-                  </span>
-                </li>
-              ))}
-            </ul>
+                        {/* Column 1: User / Staff */}
+                        <td className="py-3.5 px-4 whitespace-nowrap">
+                          <div className="flex items-center gap-3">
+                            <div className="w-9 h-9 rounded-full bg-[#d7ecc8]/40 border border-[#4a6741]/20 flex items-center justify-center text-[#4a6741] font-bold text-xs flex-shrink-0 overflow-hidden">
+                              {s.profileImageUrl ? (
+                                <img
+                                  src={resolveImageUrl(s.profileImageUrl)}
+                                  alt={s.fullName}
+                                  className="w-full h-full object-cover"
+                                />
+                              ) : (
+                                (s.fullName || "U")[0]?.toUpperCase()
+                              )}
+                            </div>
+                            <div className="min-w-0">
+                              <span className="font-bold text-gray-900 block truncate group-hover:text-[#4a6741] transition">
+                                {s.fullName}
+                              </span>
+                              <span className="text-[11px] text-gray-400 font-mono block truncate">
+                                {s.username ? `@${s.username} • ` : ""}{s.email}
+                              </span>
+                            </div>
+                          </div>
+                        </td>
+
+                        {/* Column 2: Role */}
+                        <td className="py-3.5 px-4 whitespace-nowrap">
+                          <span
+                            className={`text-[10px] font-bold px-2.5 py-1 rounded-full border ${s.role === "admin"
+                                ? "bg-purple-50 text-purple-700 border-purple-200"
+                                : "bg-sky-50 text-sky-700 border-sky-200"
+                              }`}
+                          >
+                            {s.role === "admin" ? "System Administrator" : "Campus Staff"}
+                          </span>
+                        </td>
+
+                        {/* Column 3: Status */}
+                        <td className="py-3.5 px-4 whitespace-nowrap">
+                          <span className="text-[10px] font-bold px-2.5 py-1 rounded-full border bg-emerald-50 text-emerald-700 border-emerald-200">
+                            Approved
+                          </span>
+                        </td>
+
+                        {/* Column 4: Assigned IP Address */}
+                        <td className="py-3.5 px-4 whitespace-nowrap">
+                          <div className="flex items-center gap-2">
+                            <span className="font-mono font-bold text-xs text-gray-800">
+                              {s.lastLoginIp || "—"}
+                            </span>
+                            {s.lastLoginIp && (
+                              <button
+                                type="button"
+                                onClick={(e) => copyIp(s.lastLoginIp, e)}
+                                className="text-gray-400 hover:text-gray-600 p-1 rounded hover:bg-gray-100 transition cursor-pointer"
+                                title="Copy IP"
+                              >
+                                {copiedIp === s.lastLoginIp ? (
+                                  <IoCheckmarkOutline className="text-emerald-600 text-sm" />
+                                ) : (
+                                  <IoCopyOutline className="text-xs" />
+                                )}
+                              </button>
+                            )}
+                          </div>
+                        </td>
+
+                        {/* Column 5: Region */}
+                        <td className="py-3.5 px-4 whitespace-nowrap">
+                          <div className="flex items-center gap-1.5">
+                            <IoLocationOutline className="text-red-500 text-sm flex-shrink-0" />
+                            <span className="font-semibold text-gray-800 text-xs">Philippines</span>
+                          </div>
+                        </td>
+
+                        {/* Column 6: Last Activity */}
+                        <td className="py-3.5 px-4 whitespace-nowrap">
+                          <div
+                            className="text-gray-500 font-mono text-[11px] flex items-center gap-1.5"
+                            title={timeInfo.full}
+                          >
+                            {timeInfo.isRecent && (
+                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse flex-shrink-0" />
+                            )}
+                            <span>{timeInfo.relative}</span>
+                          </div>
+                        </td>
+
+                        {/* Column 7: Actions */}
+                        <td className="py-3.5 px-4 text-right whitespace-nowrap">
+                          <div className="flex items-center justify-end gap-1.5">
+                            {s._id !== user?._id && (
+                              <button
+                                onClick={() => openDelete(s)}
+                                title="Delete account"
+                                className="p-1.5 rounded-lg text-gray-400 hover:text-rose-600 hover:bg-rose-50 transition cursor-pointer"
+                              >
+                                <IoTrashOutline className="text-base" />
+                              </button>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
           )}
 
-          {/* Footer */}
+          {/* Table Footer */}
           {!loading && filteredStaff.length > 0 && (
-            <div className="flex items-center justify-between px-5 py-3 border-t border-gray-100 bg-gray-50 rounded-b-2xl">
-              <p className="text-xs text-gray-400">
-                Showing <span className="font-semibold text-gray-700">{filteredStaff.length}</span> account{filteredStaff.length !== 1 ? "s" : ""}
-              </p>
+            <div className="flex items-center justify-between px-5 py-3.5 border-t border-gray-100 gap-3 bg-gray-50/50">
+              <div className="text-xs text-gray-500">
+                Showing <strong className="text-gray-800">{filteredStaff.length}</strong> account{filteredStaff.length !== 1 ? "s" : ""}
+              </div>
             </div>
           )}
         </div>

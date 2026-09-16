@@ -2,8 +2,49 @@ const jwt = require("jsonwebtoken");
 const fs = require("fs");
 const path = require("path");
 const User = require("../models/User");
+const FailedLogin = require("../models/FailedLogin");
 const logAudit = require("../utils/auditLogger");
 const { extractClientIp, resolveIpLocation, parseDeviceFormFactor } = require("../utils/networkUtils");
+
+const recordFailedLogin = async ({ req, identifier, user = null, accountType = "unknown", reason }) => {
+  try {
+    const clientIp = extractClientIp(req);
+    const locationInfo = resolveIpLocation(clientIp);
+    const deviceType = parseDeviceFormFactor(req.headers["user-agent"]);
+
+    await FailedLogin.create({
+      accountType: user?.role || accountType,
+      identifier: identifier || "Unknown",
+      userModel: user ? "User" : null,
+      userId: user?._id || null,
+      name: user?.fullName || "Unregistered Staff/Admin",
+      email: user?.email || "",
+      ipAddress: clientIp,
+      region: "Philippines",
+      deviceType,
+      userAgent: req.headers["user-agent"] || "",
+      reason,
+    });
+
+    logAudit({
+      action: "Failed Login Attempt",
+      actorType: user?.role || "system",
+      actorId: user?._id || null,
+      actorName: user?.fullName || identifier || "Unknown User",
+      description: `Failed login attempt for '${identifier}' from ${clientIp} - ${reason}`,
+      category: "auth",
+      meta: {
+        clientIp,
+        region: "Philippines",
+        device: deviceType,
+        reason,
+        attemptedIdentifier: identifier,
+      },
+    });
+  } catch (err) {
+    console.error("Failed to record failed login:", err.message);
+  }
+};
 
 const generateToken = (id) =>
   jwt.sign({ id }, process.env.JWT_SECRET, { expiresIn: "12h" });
@@ -74,11 +115,24 @@ exports.login = async (req, res) => {
 
     const user = await User.findOne({ username });
     if (!user) {
+      await recordFailedLogin({
+        req,
+        identifier: username,
+        accountType: "unknown",
+        reason: "Username not found",
+      });
       return res.status(401).json({ message: "Invalid username or password" });
     }
 
     if (user.isLocked()) {
       const minutesRemaining = Math.ceil((user.lockUntil - Date.now()) / (60 * 1000));
+      await recordFailedLogin({
+        req,
+        identifier: username,
+        user,
+        accountType: user.role || "staff",
+        reason: `Account locked (${minutesRemaining}m remaining)`,
+      });
       return res.status(403).json({
         message: `Account is temporarily locked due to consecutive failed login attempts. Please try again in ${minutesRemaining} minute(s).`,
       });
@@ -87,18 +141,36 @@ exports.login = async (req, res) => {
     const isMatch = await user.matchPassword(password);
     if (!isMatch) {
       user.failedLoginAttempts = (user.failedLoginAttempts || 0) + 1;
+      let failureReason = "Incorrect password";
       if (user.failedLoginAttempts >= 5) {
         user.lockUntil = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes lockout
-        await user.save({ validateBeforeSave: false });
+        failureReason = "5 consecutive failed attempts (Account locked)";
+      }
+      await user.save({ validateBeforeSave: false });
+      await recordFailedLogin({
+        req,
+        identifier: username,
+        user,
+        accountType: user.role || "staff",
+        reason: failureReason,
+      });
+
+      if (user.failedLoginAttempts >= 5) {
         return res.status(403).json({
           message: "Account locked due to 5 consecutive failed login attempts. Please try again after 15 minutes.",
         });
       }
-      await user.save({ validateBeforeSave: false });
       return res.status(401).json({ message: "Invalid username or password" });
     }
 
     if (!user.isApproved) {
+      await recordFailedLogin({
+        req,
+        identifier: username,
+        user,
+        accountType: user.role || "staff",
+        reason: "Account pending approval",
+      });
       return res.status(403).json({
         message: "Your account is pending approval by an admin. Please try again later.",
       });

@@ -85,7 +85,7 @@ exports.logByoc = async (req, res) => {
       recipientType: "student",
       recipientId: String(student._id),
       type: "byoc_awarded",
-      title: "Eco Points Earned! 🌿",
+      title: "Eco Points Earned!",
       body: `+${ECO_POINTS} eco points awarded for bringing your own container.`,
       meta: { ecoPoints: ECO_POINTS, newBalance: student.points },
     });

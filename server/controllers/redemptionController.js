@@ -72,7 +72,7 @@ exports.redeemReward = async (req, res) => {
       recipientType: "student",
       recipientId: String(student._id),
       type: "reward_redeemed",
-      title: "Reward Redeemed! 🎁",
+      title: "Reward Redeemed!",
       body: `"${reward.name}" redeemed for ${reward.pointsCost} pts. Remaining balance: ${student.points} pts.`,
       meta: { rewardName: reward.name, pointsUsed: reward.pointsCost, newBalance: student.points },
     });

@@ -3,9 +3,50 @@ const fs = require("fs");
 const path = require("path");
 const jwt = require("jsonwebtoken");
 const Student = require("../models/Student");
+const FailedLogin = require("../models/FailedLogin");
 const { sendResetCode } = require("../config/mailer");
 const logAudit = require("../utils/auditLogger");
 const { extractClientIp, resolveIpLocation, parseDeviceFormFactor } = require("../utils/networkUtils");
+
+const recordStudentFailedLogin = async ({ req, identifier, student = null, reason }) => {
+  try {
+    const clientIp = extractClientIp(req);
+    const locationInfo = resolveIpLocation(clientIp);
+    const deviceType = parseDeviceFormFactor(req.headers["user-agent"]);
+
+    await FailedLogin.create({
+      accountType: "student",
+      identifier: identifier || "Unknown",
+      userModel: student ? "Student" : null,
+      userId: student?._id || null,
+      name: student?.fullName || "Unregistered Student",
+      email: student?.email || "",
+      ipAddress: clientIp,
+      region: "Philippines",
+      deviceType,
+      userAgent: req.headers["user-agent"] || "",
+      reason,
+    });
+
+    logAudit({
+      action: "Failed Student Login",
+      actorType: "student",
+      actorId: student?._id || null,
+      actorName: student?.fullName || identifier || "Unknown Student",
+      description: `Failed student login attempt for '${identifier}' from ${clientIp} - ${reason}`,
+      category: "auth",
+      meta: {
+        clientIp,
+        region: "Philippines",
+        device: deviceType,
+        reason,
+        attemptedIdentifier: identifier,
+      },
+    });
+  } catch (err) {
+    console.error("Failed to record student failed login:", err.message);
+  }
+};
 
 const generateToken = (id) =>
   jwt.sign({ id, type: "student" }, process.env.JWT_SECRET, { expiresIn: "7d" });
@@ -59,11 +100,23 @@ exports.login = async (req, res) => {
 
     const student = await Student.findOne({ schoolId: String(rawId).toUpperCase().trim() });
     if (!student) {
+      await recordStudentFailedLogin({
+        req,
+        identifier: String(rawId).trim(),
+        student: null,
+        reason: "School ID not found",
+      });
       return res.status(401).json({ message: "Invalid School ID or password" });
     }
 
     if (student.isLocked()) {
       const minutesRemaining = Math.ceil((student.lockUntil - Date.now()) / (60 * 1000));
+      await recordStudentFailedLogin({
+        req,
+        identifier: student.schoolId,
+        student,
+        reason: `Account locked (${minutesRemaining}m remaining)`,
+      });
       return res.status(403).json({
         message: `Account is temporarily locked due to consecutive failed login attempts. Please try again in ${minutesRemaining} minute(s).`,
       });
@@ -72,22 +125,44 @@ exports.login = async (req, res) => {
     const isMatch = await student.matchPassword(password);
     if (!isMatch) {
       student.failedLoginAttempts = (student.failedLoginAttempts || 0) + 1;
+      let failureReason = "Incorrect password";
       if (student.failedLoginAttempts >= 5) {
         student.lockUntil = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes lockout
-        await student.save({ validateBeforeSave: false });
+        failureReason = "5 consecutive failed attempts (Account locked)";
+      }
+      await student.save({ validateBeforeSave: false });
+      await recordStudentFailedLogin({
+        req,
+        identifier: student.schoolId,
+        student,
+        reason: failureReason,
+      });
+
+      if (student.failedLoginAttempts >= 5) {
         return res.status(403).json({
           message: "Account locked due to 5 consecutive failed login attempts. Please try again after 15 minutes.",
         });
       }
-      await student.save({ validateBeforeSave: false });
       return res.status(401).json({ message: "Invalid School ID or password" });
     }
 
     if (student.isDeleted) {
+      await recordStudentFailedLogin({
+        req,
+        identifier: student.schoolId,
+        student,
+        reason: "Account deleted",
+      });
       return res.status(403).json({ message: "Your account has been deleted. Please contact your administrator." });
     }
 
     if (!student.isActive) {
+      await recordStudentFailedLogin({
+        req,
+        identifier: student.schoolId,
+        student,
+        reason: "Account deactivated",
+      });
       return res.status(403).json({ message: "Your account has been deactivated. Please contact your school administrator." });
     }
 
