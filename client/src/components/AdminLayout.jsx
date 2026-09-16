@@ -765,7 +765,7 @@ export default function AdminLayout({ children, breadcrumb = "Dashboard" }) {
             - Responsive: Changes layout on mobile vs desktop
             - Contains breadcrumb title and user actions */}
           {/* ──────────────────────────────────────────────────────────────────── */}
-          <header className="flex-shrink-0 h-16 bg-white border-b border-gray-200 flex items-center px-6 lg:px-8 gap-6">
+          <header className="flex-shrink-0 h-16 bg-white border-b border-gray-200 flex items-center px-4 sm:px-6 lg:px-8 gap-3 sm:gap-6">
             {/* ──────────────────────────────────────────────────────────────────── */}
             {/* Mobile Hamburger Menu Button */}
             {/* Only visible on small screens (lg:hidden) */}
@@ -833,7 +833,7 @@ export default function AdminLayout({ children, breadcrumb = "Dashboard" }) {
           </header>
 
           {/* Page content */}
-          <main key={location.pathname} className="flex-1 overflow-y-auto p-6 lg:p-8 animate-admin-page-fade-in">
+          <main key={location.pathname} className="flex-1 overflow-y-auto p-3.5 sm:p-5 lg:p-8 animate-admin-page-fade-in">
             {children}
           </main>
         </div>

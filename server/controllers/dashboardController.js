@@ -72,11 +72,34 @@ exports.getDashboardStats = async (req, res) => {
       .limit(5)
       .select("studentName schoolId rewardName pointsUsed createdAt");
 
+    // ── Hourly rush distribution (7 AM to 5 PM) ──
+    const hours = [7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17];
+    const hourlyMap = {};
+    hours.forEach((h) => {
+      const label = h === 12 ? "12 PM" : h > 12 ? `${h - 12} PM` : `${h} AM`;
+      hourlyMap[h] = { hour: h, label, orders: 0, revenue: 0 };
+    });
+
+    ordersToday.forEach((o) => {
+      if (o.status === "cancelled") return;
+      const h = new Date(o.createdAt).getHours();
+      if (hourlyMap[h]) {
+        hourlyMap[h].orders += 1;
+        hourlyMap[h].revenue += o.total || 0;
+      }
+    });
+
+    const hourlyDistribution = hours.map((h) => hourlyMap[h]);
+
     //dito yung current-previous day / previous day * 100
     const pctChange = (today, yesterday) => {
       if (yesterday === 0) return today > 0 ? 100 : 0;
       return Math.round(((today - yesterday) / yesterday) * 100);
     };
+
+    const totalInv = allInventory.length;
+    const issueCount = lowStock.length + outOfStock.length;
+    const stockHealthPct = totalInv > 0 ? Math.max(0, Math.round(((totalInv - issueCount) / totalInv) * 100)) : 100;
 
     res.json({
       stats: {
@@ -90,9 +113,13 @@ exports.getDashboardStats = async (req, res) => {
         pendingOrders,
         lowStockCount: lowStock.length,
         outOfStockCount: outOfStock.length,
+        totalInventoryCount: totalInv,
+        stockHealthPct,
         totalStudents,
       },
-      lowStockItems: lowStock.slice(0, 5).map((i) => ({ _id: i._id, name: i.name, quantity: i.quantity, unit: i.unit, minThreshold: i.minThreshold })),
+      hourlyDistribution,
+      lowStockItems: lowStock.slice(0, 8).map((i) => ({ _id: i._id, name: i.name, quantity: i.quantity, unit: i.unit, minThreshold: i.minThreshold })),
+      outOfStockItems: outOfStock.slice(0, 8).map((i) => ({ _id: i._id, name: i.name, quantity: i.quantity, unit: i.unit, minThreshold: i.minThreshold })),
       recentOrders,
       recentRedemptions,
     });
